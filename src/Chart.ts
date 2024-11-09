@@ -65,24 +65,29 @@ export class Chart {
             1        // 1 минута
         ];
         const durationInMinutes = zoomDurations[Math.max(0, Math.min(this.zoomLevel, zoomDurations.length - 1))];
+        const durationInSeconds = durationInMinutes * 60;
 
         const groupedBars: BarData[] = [];
         const bars = this.bars;
 
+        if (bars.length === 0) {
+            return groupedBars;
+        }
+
         let currentGroup: Bar[] = [];
-        let currentGroupStartTime = bars[0].getTime();
+        let currentGroupStartTime = Math.floor(bars[0].getTime() / durationInSeconds) * durationInSeconds;
 
         for (const bar of bars) {
             const barTime = bar.getTime();
 
-            if ((barTime - currentGroupStartTime) / 60 < durationInMinutes) {
+            if (barTime < currentGroupStartTime + durationInSeconds) {
                 currentGroup.push(bar);
             } else {
                 if (currentGroup.length > 0) {
                     groupedBars.push(this.aggregateBars(currentGroup));
                 }
                 currentGroup = [bar];
-                currentGroupStartTime = barTime;
+                currentGroupStartTime = Math.floor(barTime / durationInSeconds) * durationInSeconds;
             }
         }
 
@@ -142,10 +147,12 @@ export class Chart {
         const barSpacing = 5;
         const barWidth = 10;
         const topPadding = 30;
-        const bottomPadding = 50; // Дополнительное пространство для объёма
+        const volumeBarHeight = 30; // Фиксированная высота для объёмов
+        const dateLabelHeight = 20; // Высота для меток дат
+        const bottomPadding = volumeBarHeight + dateLabelHeight; // Общий нижний отступ
         const availableHeight = height - topPadding - bottomPadding;
     
-        // **Добавляем определение длительности бара**
+        // Добавляем определение длительности бара
         const zoomDurations = [
             24 * 60, // 1 день в минутах
             12 * 60, // 12 часов
@@ -157,8 +164,20 @@ export class Chart {
             5,       // 5 минут
             1        // 1 минута
         ];
+        const intervals = [
+            '1 день',
+            '12 часов',
+            '6 часов',
+            '3 часа',
+            '1 час',
+            '30 минут',
+            '15 минут',
+            '5 минут',
+            '1 минута'
+        ];
         const durationInMinutes = zoomDurations[Math.max(0, Math.min(this.zoomLevel, zoomDurations.length - 1))];
         const durationInSeconds = durationInMinutes * 60;
+        const currentInterval = intervals[Math.max(0, Math.min(this.zoomLevel, intervals.length - 1))];
     
         // Общая ширина графика
         const totalBars = groupedBars.length;
@@ -181,8 +200,11 @@ export class Chart {
         const maxVolume = Math.max(...groupedBars.map(bar => bar.TickVolume)) || 1; // Избегаем деления на ноль
     
         // Инициализируем времена первого и последнего видимых баров
-        let firstVisibleBarTime: number | null = null;
-        let lastVisibleBarTime: number | null = null;
+        let firstVisibleBarTime: number = 0;
+        let lastVisibleBarTime: number = 0;
+    
+        // Массив для хранения видимых баров
+        const visibleBars: BarData[] = [];
     
         groupedBars.forEach((bar, index) => {
             const barX = index * (barWidth + barSpacing) + this.offsetX + this.padding;
@@ -212,11 +234,13 @@ export class Chart {
     
             // Проверка видимости бара
             if (barX + barWidth >= 0 && barX - barWidth <= width) {
+                // Добавляем бар в массив видимых баров
+                visibleBars.push(bar);
+    
                 // Устанавливаем времена первого и последнего видимых баров
-                if (firstVisibleBarTime === null) {
+                if (visibleBars.length === 1) {
                     firstVisibleBarTime = bar.Time;
                 }
-                // **Добавляем длительность бара к времени для lastVisibleBarTime**
                 lastVisibleBarTime = bar.Time + durationInSeconds;
     
                 // Установка цвета бара
@@ -239,15 +263,14 @@ export class Chart {
                 this.ctx.fillRect(barX - barWidth / 2, barTopY, barWidth, barHeight);
     
                 // Отрисовка объёма под каждой свечой (Tick Volume)
-                // Вычисляем высоту объёма с минимальной высотой
-                let volumeHeight = (bar.TickVolume / maxVolume) * (bottomPadding - 10);
+                let volumeHeight = (bar.TickVolume / maxVolume) * volumeBarHeight;
                 const minVolumeHeight = 1; // Минимальная высота объёма
                 if (volumeHeight < minVolumeHeight) {
                     volumeHeight = minVolumeHeight;
                 }
     
                 // Позиция Y для объёма
-                const volumeY = height - volumeHeight - 10; // Отступ в 10 пикселей от нижнего края
+                const volumeY = height - dateLabelHeight - volumeHeight; // Над метками дат
     
                 // Отрисовка объёма
                 this.ctx.fillStyle = 'blue';
@@ -255,35 +278,121 @@ export class Chart {
             }
         });
     
-        // Отображение временного диапазона видимых баров
-        if (firstVisibleBarTime !== null && lastVisibleBarTime !== null) {
-            // Преобразуем временные метки в даты
-            const firstDate = new Date(firstVisibleBarTime * 1000);
-            const lastDate = new Date(lastVisibleBarTime * 1000);
-    
-            // Форматируем даты
-            const firstDateString = this.formatDate(firstDate);
-            const lastDateString = this.formatDate(lastDate);
-    
-            // Отображаем временной диапазон
-            this.ctx.fillStyle = 'black';
-            this.ctx.font = '12px Arial';
-            const timeRangeText = `Visible Time Range: ${firstDateString} - ${lastDateString}`;
-            const textWidth = this.ctx.measureText(timeRangeText).width;
-            this.ctx.fillText(timeRangeText, width - textWidth - 10, 20); // Отображаем в верхнем правом углу
+        // Если нет видимых баров, выходим из метода
+        if (visibleBars.length === 0) {
+            return;
         }
+    
+        // Отображение временного диапазона видимых баров и текущего интервала
+        const firstDate = new Date(firstVisibleBarTime * 1000);
+        const lastDate = new Date(lastVisibleBarTime * 1000);
+    
+        const firstDateString = this.formatDate(firstDate);
+        const lastDateString = this.formatDate(lastDate);
+    
+        this.ctx.fillStyle = 'black';
+        this.ctx.font = '12px Arial';
+        const timeRangeText = `Видимый диапазон: ${firstDateString} - ${lastDateString} (Интервал: ${currentInterval})`;
+        const textWidth = this.ctx.measureText(timeRangeText).width;
+        this.ctx.fillText(timeRangeText, width - textWidth - 10, 20);
+    
+        // **Определяем количество меток и формат даты на основе уровня зума**
+        let labelCount: number;
+        let includeDate: boolean = false;
+    
+        if (durationInMinutes <= 30) {
+            // 1, 5, 15, 30 минут
+            labelCount = 6;
+            includeDate = false;
+        } else if (durationInMinutes <= 180) {
+            // 1, 3 часа
+            labelCount = 5;
+            includeDate = true;
+        } else if (durationInMinutes <= 720) {
+            // 6, 12 часов
+            labelCount = 4;
+            includeDate = true;
+        } else {
+            // 1 день
+            // Вычисляем количество дней между первым и последним видимым баром
+            const startDate = new Date(firstVisibleBarTime * 1000);
+            const endDate = new Date(lastVisibleBarTime * 1000);
+            const dayDifference = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+    
+            labelCount = Math.min(dayDifference, 4);
+            includeDate = true;
+    
+            if (labelCount < 2) {
+                labelCount = 2; // Минимум 2 метки для дней
+            }
+        }
+    
+        // Фиксированные позиции для меток дат
+        // Настройки текста
+        this.ctx.fillStyle = 'black';
+        this.ctx.font = '10px Arial';
+    
+        const leftPadding = this.padding;
+        const rightPadding = this.padding;
+        const availableWidth = width - leftPadding - rightPadding;
+        const labelY = height - 5; // Позиция Y для меток времени
+    
+        for (let i = 0; i < labelCount; i++) {
+            let positionX = leftPadding + (i * availableWidth) / (labelCount - 1);
+            const time = firstVisibleBarTime + (i * (lastVisibleBarTime - firstVisibleBarTime)) / (labelCount - 1);
+    
+            const date = new Date(time * 1000);
+            let dateString: string;
+    
+            if (durationInMinutes >= 1440) { // Если интервал 1 день или больше
+                dateString = this.formatDate(date);
+            } else if (includeDate) {
+                dateString = this.formatDateTime(date);
+            } else {
+                dateString = this.formatTime(date);
+            }
+    
+            // Настройка выравнивания текста
+            if (i === 0) {
+                this.ctx.textAlign = 'left';
+            } else if (i === labelCount - 1) {
+                this.ctx.textAlign = 'right';
+            } else {
+                this.ctx.textAlign = 'center';
+            }
+    
+            // Отображение метки времени
+            this.ctx.fillText(dateString, positionX, labelY);
+        }
+    
+        // Возвращаем выравнивание текста по умолчанию
+        this.ctx.textAlign = 'left';
     }
     
+    
+    
+// Метод для форматирования даты
+private formatDate(date: Date): string {
+    return `${date.getDate().toString().padStart(2, '0')}.${(date.getMonth() + 1)
+        .toString()
+        .padStart(2, '0')}.${date.getFullYear()}`;
+}
 
-    // Метод для форматирования даты
-    private formatDate(date: Date): string {
-        return `${date.getDate().toString().padStart(2, '0')}.${(date.getMonth() + 1)
-            .toString()
-            .padStart(2, '0')}.${date.getFullYear()} ${date
-            .getHours()
-            .toString()
-            .padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
-    }
+// Метод для форматирования даты и времени
+private formatDateTime(date: Date): string {
+    return `${date.getDate().toString().padStart(2, '0')}.${(date.getMonth() + 1)
+        .toString()
+        .padStart(2, '0')}.${date.getFullYear()} ${date
+        .getHours()
+        .toString()
+        .padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+}
+
+// Метод для форматирования времени
+private formatTime(date: Date): string {
+    return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+}
+
 
     // Метод для масштабирования графика
     public zoom(zoomIn: boolean) {
