@@ -12,8 +12,7 @@ async function initializeApp() {
 
         if (data.length > 0) {
             const canvas = document.getElementById('chartCanvas') as HTMLCanvasElement;
-            console.log(canvas)
-            const chart = new Chart(canvas, data[0].Bars, data[0].ChunkStart); // Используем только первую часть данных
+            const chart = new Chart(canvas, [...data[0].Bars,...data[1].Bars], data[0].ChunkStart); // Используем только первую часть данных
             chart.render();
             setupEventListeners(chart);
         }
