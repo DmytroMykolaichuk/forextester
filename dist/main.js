@@ -1,15 +1,16 @@
-// maine.ts
+// const apiUrl ='https://beta.forextester.com/data/api/Metadata/bars/chunked?Broker=Advanced&Symbol=USDJPY&Timeframe=1&Start=57674&End=59113&UseMessagePack=false'
+// main.ts
 import { Chart } from './Chart';
 import DataService from "./dataService";
-// const apiUrl = 'https://beta.forextester.com/data/api/Metadata/bars/chunked?Broker=Advanced&Symbol=EURUSD&Timeframe=1&Start=57674&End=59113&UseMessagePack=false';
-const apiUrl = 'https://beta.forextester.com/data/api/Metadata/bars/chunked?Broker=Advanced&Symbol=USDJPY&Timeframe=1&Start=57674&End=59113&UseMessagePack=false';
+const apiUrl = 'https://beta.forextester.com/data/api/Metadata/bars/chunked?Broker=Advanced&Symbol=EURUSD&Timeframe=1&Start=57674&End=59113&UseMessagePack=false';
 async function initializeApp() {
     const dataService = new DataService(apiUrl);
     try {
         const data = await dataService.fetchData();
+        console.log(data[0].ChunkStart, data[1].ChunkStart);
         if (data.length > 0) {
             const canvas = document.getElementById('chartCanvas');
-            const chart = new Chart(canvas, [...data[0].Bars, ...data[1].Bars], data[0].ChunkStart); // Используем только первую часть данных
+            const chart = new Chart(canvas, data); // Передаем массив чанков
             chart.render();
             setupEventListeners(chart);
         }

@@ -1,27 +1,54 @@
 // Chart.ts
 import { Bar, BarData } from './Bar';
 
+interface DataChunk {
+    ChunkStart: number;
+    Bars: BarData[];
+}
+
 export class Chart {
     public canvas: HTMLCanvasElement;
     private ctx: CanvasRenderingContext2D;
-    private data: Bar[];
+    private dataChunks: DataChunk[]; // Массив чанков
+    private bars: Bar[]; // Общий массив баров после обработки
     private offsetX: number;
-    private chunkStart: number;
     private zoomLevel: number;
     private padding: number;
     private offsetXInitialized: boolean;
     private totalChartWidth: number;
 
-    constructor(canvas: HTMLCanvasElement, data: BarData[], chunkStart: number) {
+    constructor(canvas: HTMLCanvasElement, dataChunks: DataChunk[]) {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d')!;
-        this.data = data.map(barData => new Bar(barData));
+        this.dataChunks = dataChunks;
+        this.bars = [];
         this.offsetX = 0;
-        this.chunkStart = chunkStart;
         this.zoomLevel = 6;
         this.padding = 30;
-        this.offsetXInitialized = false; // Добавили флаг для инициализации offsetX
-        this.totalChartWidth = 0; // Инициализируем общую ширину графика
+        this.offsetXInitialized = false;
+        this.totalChartWidth = 0;
+
+        // Обрабатываем данные и формируем общий массив баров
+        this.processDataChunks();
+    }
+
+    // Метод для обработки чанков данных
+    private processDataChunks() {
+        for (const chunk of this.dataChunks) {
+            const chunkStart = chunk.ChunkStart;
+            const bars = chunk.Bars.map(barData => {
+                // Корректируем время бара, добавляя ChunkStart
+                const correctedBarData: BarData = {
+                    ...barData,
+                    Time: barData.Time + chunkStart
+                };
+                return new Bar(correctedBarData);
+            });
+            this.bars = this.bars.concat(bars);
+        }
+
+        // Сортируем бары по времени
+        this.bars.sort((a, b) => a.getTime() - b.getTime());
     }
 
     // Метод для группировки баров для текущего уровня зума
@@ -40,26 +67,50 @@ export class Chart {
         const durationInMinutes = zoomDurations[Math.max(0, Math.min(this.zoomLevel, zoomDurations.length - 1))];
 
         const groupedBars: BarData[] = [];
-        for (let i = 0; i < this.data.length; i += durationInMinutes) {
-            const group = this.data.slice(i, i + durationInMinutes);
-            if (group.length > 0) {
-                const open = group[0].getOpen();
-                const close = group[group.length - 1].getClose();
-                const high = Math.max(...group.map(bar => bar.getHigh()));
-                const low = Math.min(...group.map(bar => bar.getLow()));
-                const tickVolume = group.reduce((sum, bar) => sum + bar.getTickVolume(), 0) / group.length;
-                groupedBars.push({
-                    Time: group[0].getTime() + this.chunkStart,
-                    Open: open,
-                    High: high,
-                    Low: low,
-                    Close: close,
-                    TickVolume: tickVolume
-                });
+        const bars = this.bars;
+
+        let currentGroup: Bar[] = [];
+        let currentGroupStartTime = bars[0].getTime();
+
+        for (const bar of bars) {
+            const barTime = bar.getTime();
+
+            if ((barTime - currentGroupStartTime) / 60 < durationInMinutes) {
+                currentGroup.push(bar);
+            } else {
+                if (currentGroup.length > 0) {
+                    groupedBars.push(this.aggregateBars(currentGroup));
+                }
+                currentGroup = [bar];
+                currentGroupStartTime = barTime;
             }
         }
 
+        // Добавляем последнюю группу
+        if (currentGroup.length > 0) {
+            groupedBars.push(this.aggregateBars(currentGroup));
+        }
+
         return groupedBars;
+    }
+
+    // Метод для агрегации баров в группу
+    private aggregateBars(bars: Bar[]): BarData {
+        const open = bars[0].getOpen();
+        const close = bars[bars.length - 1].getClose();
+        const high = Math.max(...bars.map(bar => bar.getHigh()));
+        const low = Math.min(...bars.map(bar => bar.getLow()));
+        const tickVolume = bars.reduce((sum, bar) => sum + bar.getTickVolume(), 0);
+        const time = bars[0].getTime();
+
+        return {
+            Time: time,
+            Open: open,
+            High: high,
+            Low: low,
+            Close: close,
+            TickVolume: tickVolume
+        };
     }
 
     // Метод для отображения графика
@@ -71,10 +122,9 @@ export class Chart {
         this.ctx.clearRect(0, 0, width, height);
     
         // Отрисовка названия графика
-        const chunkStartDate = new Date(this.chunkStart * 1000);
         this.ctx.fillStyle = 'black';
         this.ctx.font = '12px Arial';
-        this.ctx.fillText(`Data from: ${chunkStartDate.toLocaleDateString('ua-UA')}`, 10, 20);
+        this.ctx.fillText(`Data from multiple chunks`, 10, 20);
     
         const groupedBars = this.groupBarsByZoomLevel();
     
@@ -95,6 +145,21 @@ export class Chart {
         const bottomPadding = 50; // Дополнительное пространство для объёма
         const availableHeight = height - topPadding - bottomPadding;
     
+        // **Добавляем определение длительности бара**
+        const zoomDurations = [
+            24 * 60, // 1 день в минутах
+            12 * 60, // 12 часов
+            6 * 60,  // 6 часов
+            3 * 60,  // 3 часа
+            60,      // 1 час
+            30,      // 30 минут
+            15,      // 15 минут
+            5,       // 5 минут
+            1        // 1 минута
+        ];
+        const durationInMinutes = zoomDurations[Math.max(0, Math.min(this.zoomLevel, zoomDurations.length - 1))];
+        const durationInSeconds = durationInMinutes * 60;
+    
         // Общая ширина графика
         const totalBars = groupedBars.length;
         this.totalChartWidth = totalBars * (barWidth + barSpacing) - barSpacing + this.padding * 2;
@@ -114,6 +179,10 @@ export class Chart {
     
         // Максимальный объём для нормализации высоты столбиков объёма
         const maxVolume = Math.max(...groupedBars.map(bar => bar.TickVolume)) || 1; // Избегаем деления на ноль
+    
+        // Инициализируем времена первого и последнего видимых баров
+        let firstVisibleBarTime: number | null = null;
+        let lastVisibleBarTime: number | null = null;
     
         groupedBars.forEach((bar, index) => {
             const barX = index * (barWidth + barSpacing) + this.offsetX + this.padding;
@@ -143,6 +212,13 @@ export class Chart {
     
             // Проверка видимости бара
             if (barX + barWidth >= 0 && barX - barWidth <= width) {
+                // Устанавливаем времена первого и последнего видимых баров
+                if (firstVisibleBarTime === null) {
+                    firstVisibleBarTime = bar.Time;
+                }
+                // **Добавляем длительность бара к времени для lastVisibleBarTime**
+                lastVisibleBarTime = bar.Time + durationInSeconds;
+    
                 // Установка цвета бара
                 if (bar.Close > bar.Open) {
                     this.ctx.fillStyle = 'green';
@@ -178,9 +254,36 @@ export class Chart {
                 this.ctx.fillRect(barX - barWidth / 2, volumeY, barWidth, volumeHeight);
             }
         });
+    
+        // Отображение временного диапазона видимых баров
+        if (firstVisibleBarTime !== null && lastVisibleBarTime !== null) {
+            // Преобразуем временные метки в даты
+            const firstDate = new Date(firstVisibleBarTime * 1000);
+            const lastDate = new Date(lastVisibleBarTime * 1000);
+    
+            // Форматируем даты
+            const firstDateString = this.formatDate(firstDate);
+            const lastDateString = this.formatDate(lastDate);
+    
+            // Отображаем временной диапазон
+            this.ctx.fillStyle = 'black';
+            this.ctx.font = '12px Arial';
+            const timeRangeText = `Visible Time Range: ${firstDateString} - ${lastDateString}`;
+            const textWidth = this.ctx.measureText(timeRangeText).width;
+            this.ctx.fillText(timeRangeText, width - textWidth - 10, 20); // Отображаем в верхнем правом углу
+        }
     }
     
-    
+
+    // Метод для форматирования даты
+    private formatDate(date: Date): string {
+        return `${date.getDate().toString().padStart(2, '0')}.${(date.getMonth() + 1)
+            .toString()
+            .padStart(2, '0')}.${date.getFullYear()} ${date
+            .getHours()
+            .toString()
+            .padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+    }
 
     // Метод для масштабирования графика
     public zoom(zoomIn: boolean) {
