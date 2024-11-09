@@ -232,8 +232,8 @@ export class Chart {
         // Отображение временного диапазона видимых баров и текущего интервала
         const firstDate = new Date(firstVisibleBarTime * 1000);
         const lastDate = new Date(lastVisibleBarTime * 1000);
-        const firstDateString = this.formatDate(firstDate);
-        const lastDateString = this.formatDate(lastDate);
+        const firstDateString = this.formatDateTime(firstDate);
+        const lastDateString = this.formatDateTime(lastDate);
         this.ctx.fillStyle = 'black';
         this.ctx.font = '12px Arial';
         const timeRangeText = `Видимый диапазон: ${firstDateString} - ${lastDateString} (Интервал: ${currentInterval})`;

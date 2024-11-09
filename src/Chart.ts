@@ -287,8 +287,8 @@ export class Chart {
         const firstDate = new Date(firstVisibleBarTime * 1000);
         const lastDate = new Date(lastVisibleBarTime * 1000);
     
-        const firstDateString = this.formatDate(firstDate);
-        const lastDateString = this.formatDate(lastDate);
+        const firstDateString = this.formatDateTime(firstDate);
+        const lastDateString = this.formatDateTime(lastDate);
     
         this.ctx.fillStyle = 'black';
         this.ctx.font = '12px Arial';
@@ -368,6 +368,7 @@ export class Chart {
         // Возвращаем выравнивание текста по умолчанию
         this.ctx.textAlign = 'left';
     }
+    
     
     
     
