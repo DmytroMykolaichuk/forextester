@@ -1,14 +1,5 @@
 // Bar.ts
 
-export interface BarData {
-    Time: number;
-    Open: number;
-    High: number;
-    Low: number;
-    Close: number;
-    TickVolume: number;
-}
-
 export class Bar {
     private data: BarData;
 

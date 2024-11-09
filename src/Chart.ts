@@ -1,16 +1,5 @@
 // Chart.ts
-import { Bar, BarData } from './Bar';
-
-interface DataChunk {
-    ChunkStart: number;
-    Bars: BarData[];
-}
-
-// Интерфейс для ценовых позиций (используется при отрисовке шкалы цен)
-interface PricePosition {
-    price: number;
-    y: number;
-}
+import { Bar } from './Bar';
 
 export class Chart {
     public canvas: HTMLCanvasElement;
