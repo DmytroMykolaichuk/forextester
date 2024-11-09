@@ -354,7 +354,7 @@ export class Chart {
         this.ctx.fillStyle = 'black';
         this.ctx.font = '12px Arial';
         this.ctx.textAlign = 'left'; // Выравнивание текста по левому краю
-        const timeRangeText = `Visible Range: ${firstDateString} - ${lastDateString} (Visible Range: ${currentInterval})`;
+        const timeRangeText = `Visible Range: ${firstDateString} - ${lastDateString} (Interval: ${currentInterval})`;
         this.ctx.fillText(timeRangeText, this.padding, 20);
 
         // Определяем количество меток и формат даты на основе уровня зума
