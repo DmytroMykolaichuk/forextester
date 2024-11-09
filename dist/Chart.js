@@ -139,15 +139,15 @@ export class Chart {
             1 // 1 минута
         ];
         const intervals = [
-            '1 день',
-            '12 часов',
-            '6 часов',
-            '3 часа',
-            '1 час',
-            '30 минут',
-            '15 минут',
-            '5 минут',
-            '1 минута'
+            '1 day',
+            '12 hours',
+            '6 hours',
+            '3 hours',
+            '1 hour',
+            '30 minutes',
+            '15 minutes',
+            '5 minutes',
+            '1 minute'
         ];
         const durationInMinutes = zoomDurations[Math.max(0, Math.min(this.zoomLevel, zoomDurations.length - 1))];
         const durationInSeconds = durationInMinutes * 60;
@@ -282,7 +282,7 @@ export class Chart {
         this.ctx.fillStyle = 'black';
         this.ctx.font = '12px Arial';
         this.ctx.textAlign = 'left'; // Выравнивание текста по левому краю
-        const timeRangeText = `Видимый диапазон: ${firstDateString} - ${lastDateString} (Интервал: ${currentInterval})`;
+        const timeRangeText = `Visible Range: ${firstDateString} - ${lastDateString} (Visible Range: ${currentInterval})`;
         this.ctx.fillText(timeRangeText, this.padding, 20);
         // Определяем количество меток и формат даты на основе уровня зума
         let labelCount;
@@ -358,7 +358,7 @@ export class Chart {
             const actualVolumeHeight = Math.max(volumeHeight, minVolumeHeight);
             const volumeY = height - dateLabelHeight - actualVolumeHeight;
             // Подготовка данных для плашки
-            const volumeText = `Объём: ${bar.TickVolume}`;
+            const volumeText = `Trade Volume: ${bar.TickVolume}`;
             // Устанавливаем шрифт и вычисляем размеры плашки
             this.ctx.font = '10px Arial';
             const labelWidth = this.ctx.measureText(volumeText).width + 10;
