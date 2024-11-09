@@ -5,6 +5,10 @@ interface DataChunk {
     ChunkStart: number;
     Bars: BarData[];
 }
+interface PricePosition {
+    price: number;
+    y: number;
+}
 
 export class Chart {
     public canvas: HTMLCanvasElement;
@@ -126,11 +130,6 @@ export class Chart {
         // Очистка canvas
         this.ctx.clearRect(0, 0, width, height);
     
-        // Отрисовка названия графика
-        this.ctx.fillStyle = 'black';
-        this.ctx.font = '12px Arial';
-        this.ctx.fillText(`Data from multiple chunks`, 10, 20);
-    
         const groupedBars = this.groupBarsByZoomLevel();
     
         // Вычисление максимальной и минимальной цены
@@ -150,9 +149,14 @@ export class Chart {
         const volumeBarHeight = 30; // Фиксированная высота для объёмов
         const dateLabelHeight = 20; // Высота для меток дат
         const bottomPadding = volumeBarHeight + dateLabelHeight; // Общий нижний отступ
+        const priceScaleWidth = 50; // Ширина шкалы цен
+        const priceScalePadding = 5; // Внутренний отступ для шкалы цен
+        const leftPadding = this.padding;
+        const rightPadding = this.padding + priceScaleWidth;
+        const availableWidth = width - leftPadding - rightPadding;
         const availableHeight = height - topPadding - bottomPadding;
     
-        // Добавляем определение длительности бара
+        // Определение длительности бара и текущего интервала
         const zoomDurations = [
             24 * 60, // 1 день в минутах
             12 * 60, // 12 часов
@@ -181,7 +185,8 @@ export class Chart {
     
         // Общая ширина графика
         const totalBars = groupedBars.length;
-        this.totalChartWidth = totalBars * (barWidth + barSpacing) - barSpacing + this.padding * 2;
+        const totalBarsWidth = totalBars * (barWidth + barSpacing) - barSpacing;
+        this.totalChartWidth = totalBarsWidth + leftPadding + rightPadding;
     
         // Смещение по X
         const maxOffsetX = 0;
@@ -206,8 +211,48 @@ export class Chart {
         // Массив для хранения видимых баров
         const visibleBars: BarData[] = [];
     
+        // Параметры шкалы цен
+        const numberOfIntervals = 5; // Количество интервалов между ценовыми уровнями
+        const numberOfPriceLevels = numberOfIntervals + 1; // Всего ценовых уровней (макс + мин + промежуточные)
+    
+        // Расчёт шагов по цене и позиции
+        const priceStep = priceRange / numberOfIntervals;
+        const pricePositions: PricePosition[] = [];
+    
+        for (let i = 0; i <= numberOfIntervals; i++) {
+            const price = maxPrice - i * priceStep;
+            const y = topPadding + ((maxPrice - price) / priceRange) * availableHeight;
+            pricePositions.push({ price, y });
+        }
+    
+        // Отрисовка горизонтальных линий и шкалы цен
+        this.ctx.fillStyle = 'black';
+        this.ctx.font = '10px Arial';
+        this.ctx.textAlign = 'left';
+    
+        pricePositions.forEach(position => {
+            // Отрисовка горизонтальной линии
+            this.ctx.strokeStyle = '#e0e0e0'; // Светло-серый цвет для линий
+            this.ctx.beginPath();
+            this.ctx.moveTo(leftPadding, position.y);
+            this.ctx.lineTo(width - rightPadding, position.y);
+            this.ctx.stroke();
+    
+            // Адаптивное количество знаков после запятой
+            let decimalPlaces = 2;
+            if (priceRange < 1) {
+                decimalPlaces = 4;
+            } else if (priceRange < 0.1) {
+                decimalPlaces = 6;
+            }
+    
+            const priceText = position.price.toFixed(decimalPlaces);
+            this.ctx.fillText(priceText, width - priceScaleWidth + priceScalePadding, position.y + 3);
+        });
+    
+        // Отрисовка баров
         groupedBars.forEach((bar, index) => {
-            const barX = index * (barWidth + barSpacing) + this.offsetX + this.padding;
+            const barX = this.offsetX + leftPadding + index * (barWidth + barSpacing);
     
             // Координаты Y для бара
             const openY = topPadding + ((maxPrice - bar.Open) / priceRange) * availableHeight;
@@ -233,7 +278,7 @@ export class Chart {
             }
     
             // Проверка видимости бара
-            if (barX + barWidth >= 0 && barX - barWidth <= width) {
+            if (barX + barWidth >= leftPadding && barX - barWidth <= width - rightPadding) {
                 // Добавляем бар в массив видимых баров
                 visibleBars.push(bar);
     
@@ -292,11 +337,11 @@ export class Chart {
     
         this.ctx.fillStyle = 'black';
         this.ctx.font = '12px Arial';
+        this.ctx.textAlign = 'left'; // Устанавливаем выравнивание текста по левому краю
         const timeRangeText = `Видимый диапазон: ${firstDateString} - ${lastDateString} (Интервал: ${currentInterval})`;
-        const textWidth = this.ctx.measureText(timeRangeText).width;
-        this.ctx.fillText(timeRangeText, width - textWidth - 10, 20);
+        this.ctx.fillText(timeRangeText, this.padding, 20);
     
-        // **Определяем количество меток и формат даты на основе уровня зума**
+        // Определяем количество меток и формат даты на основе уровня зума
         let labelCount: number;
         let includeDate: boolean = false;
     
@@ -328,13 +373,9 @@ export class Chart {
         }
     
         // Фиксированные позиции для меток дат
-        // Настройки текста
         this.ctx.fillStyle = 'black';
         this.ctx.font = '10px Arial';
     
-        const leftPadding = this.padding;
-        const rightPadding = this.padding;
-        const availableWidth = width - leftPadding - rightPadding;
         const labelY = height - 5; // Позиция Y для меток времени
     
         for (let i = 0; i < labelCount; i++) {
@@ -370,30 +411,28 @@ export class Chart {
     }
     
     
-    
-    
-// Метод для форматирования даты
-private formatDate(date: Date): string {
-    return `${date.getDate().toString().padStart(2, '0')}.${(date.getMonth() + 1)
-        .toString()
-        .padStart(2, '0')}.${date.getFullYear()}`;
-}
 
-// Метод для форматирования даты и времени
-private formatDateTime(date: Date): string {
-    return `${date.getDate().toString().padStart(2, '0')}.${(date.getMonth() + 1)
-        .toString()
-        .padStart(2, '0')}.${date.getFullYear()} ${date
-        .getHours()
-        .toString()
-        .padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
-}
+    // Метод для форматирования даты
+    private formatDate(date: Date): string {
+        return `${date.getDate().toString().padStart(2, '0')}.${(date.getMonth() + 1)
+            .toString()
+            .padStart(2, '0')}.${date.getFullYear()}`;
+    }
 
-// Метод для форматирования времени
-private formatTime(date: Date): string {
-    return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
-}
+    // Метод для форматирования даты и времени
+    private formatDateTime(date: Date): string {
+        return `${date.getDate().toString().padStart(2, '0')}.${(date.getMonth() + 1)
+            .toString()
+            .padStart(2, '0')}.${date.getFullYear()} ${date
+            .getHours()
+            .toString()
+            .padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+    }
 
+    // Метод для форматирования времени
+    private formatTime(date: Date): string {
+        return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+    }
 
     // Метод для масштабирования графика
     public zoom(zoomIn: boolean) {
@@ -409,19 +448,20 @@ private formatTime(date: Date): string {
     // Метод для прокрутки графика
     public scroll(deltaX: number) {
         const width = this.canvas.width;
+        const leftPadding = this.padding;
+        const rightPadding = this.padding + 50; // 50 - ширина шкалы цен
+        const totalContentWidth = this.totalChartWidth - leftPadding - rightPadding;
         const maxOffsetX = 0;
         const minOffsetX = width - this.totalChartWidth;
 
         this.offsetX += deltaX;
 
-        // Ограничиваем прокрутку, чтобы не было пустого пространства
+        // Ограничиваем прокрутку
         if (this.totalChartWidth <= width) {
-            // Если график умещается на холсте, центрируем его и отключаем прокрутку
             this.offsetX = (width - this.totalChartWidth) / 2;
         } else {
-            // Если график больше холста, включаем прокрутку
-            this.offsetX = Math.min(this.offsetX, maxOffsetX); // Не прокручиваем дальше последних баров
-            this.offsetX = Math.max(this.offsetX, minOffsetX); // Не прокручиваем дальше первых баров
+            this.offsetX = Math.min(this.offsetX, maxOffsetX);
+            this.offsetX = Math.max(this.offsetX, minOffsetX);
         }
 
         this.render();

@@ -95,10 +95,6 @@ export class Chart {
         const height = this.canvas.height;
         // Очистка canvas
         this.ctx.clearRect(0, 0, width, height);
-        // Отрисовка названия графика
-        this.ctx.fillStyle = 'black';
-        this.ctx.font = '12px Arial';
-        this.ctx.fillText(`Data from multiple chunks`, 10, 20);
         const groupedBars = this.groupBarsByZoomLevel();
         // Вычисление максимальной и минимальной цены
         const maxPrice = Math.max(...groupedBars.map(bar => bar.High));
@@ -115,8 +111,13 @@ export class Chart {
         const volumeBarHeight = 30; // Фиксированная высота для объёмов
         const dateLabelHeight = 20; // Высота для меток дат
         const bottomPadding = volumeBarHeight + dateLabelHeight; // Общий нижний отступ
+        const priceScaleWidth = 50; // Ширина шкалы цен
+        const priceScalePadding = 5; // Внутренний отступ для шкалы цен
+        const leftPadding = this.padding;
+        const rightPadding = this.padding + priceScaleWidth;
+        const availableWidth = width - leftPadding - rightPadding;
         const availableHeight = height - topPadding - bottomPadding;
-        // Добавляем определение длительности бара
+        // Определение длительности бара и текущего интервала
         const zoomDurations = [
             24 * 60, // 1 день в минутах
             12 * 60, // 12 часов
@@ -144,7 +145,8 @@ export class Chart {
         const currentInterval = intervals[Math.max(0, Math.min(this.zoomLevel, intervals.length - 1))];
         // Общая ширина графика
         const totalBars = groupedBars.length;
-        this.totalChartWidth = totalBars * (barWidth + barSpacing) - barSpacing + this.padding * 2;
+        const totalBarsWidth = totalBars * (barWidth + barSpacing) - barSpacing;
+        this.totalChartWidth = totalBarsWidth + leftPadding + rightPadding;
         // Смещение по X
         const maxOffsetX = 0;
         const minOffsetX = width - this.totalChartWidth;
@@ -164,8 +166,42 @@ export class Chart {
         let lastVisibleBarTime = 0;
         // Массив для хранения видимых баров
         const visibleBars = [];
+        // Параметры шкалы цен
+        const numberOfIntervals = 5; // Количество интервалов между ценовыми уровнями
+        const numberOfPriceLevels = numberOfIntervals + 1; // Всего ценовых уровней (макс + мин + промежуточные)
+        // Расчёт шагов по цене и позиции
+        const priceStep = priceRange / numberOfIntervals;
+        const pricePositions = [];
+        for (let i = 0; i <= numberOfIntervals; i++) {
+            const price = maxPrice - i * priceStep;
+            const y = topPadding + ((maxPrice - price) / priceRange) * availableHeight;
+            pricePositions.push({ price, y });
+        }
+        // Отрисовка горизонтальных линий и шкалы цен
+        this.ctx.fillStyle = 'black';
+        this.ctx.font = '10px Arial';
+        this.ctx.textAlign = 'left';
+        pricePositions.forEach(position => {
+            // Отрисовка горизонтальной линии
+            this.ctx.strokeStyle = '#e0e0e0'; // Светло-серый цвет для линий
+            this.ctx.beginPath();
+            this.ctx.moveTo(leftPadding, position.y);
+            this.ctx.lineTo(width - rightPadding, position.y);
+            this.ctx.stroke();
+            // Адаптивное количество знаков после запятой
+            let decimalPlaces = 2;
+            if (priceRange < 1) {
+                decimalPlaces = 4;
+            }
+            else if (priceRange < 0.1) {
+                decimalPlaces = 6;
+            }
+            const priceText = position.price.toFixed(decimalPlaces);
+            this.ctx.fillText(priceText, width - priceScaleWidth + priceScalePadding, position.y + 3);
+        });
+        // Отрисовка баров
         groupedBars.forEach((bar, index) => {
-            const barX = index * (barWidth + barSpacing) + this.offsetX + this.padding;
+            const barX = this.offsetX + leftPadding + index * (barWidth + barSpacing);
             // Координаты Y для бара
             const openY = topPadding + ((maxPrice - bar.Open) / priceRange) * availableHeight;
             const closeY = topPadding + ((maxPrice - bar.Close) / priceRange) * availableHeight;
@@ -186,7 +222,7 @@ export class Chart {
                 barBottomY = barCenterY + barHeight / 2;
             }
             // Проверка видимости бара
-            if (barX + barWidth >= 0 && barX - barWidth <= width) {
+            if (barX + barWidth >= leftPadding && barX - barWidth <= width - rightPadding) {
                 // Добавляем бар в массив видимых баров
                 visibleBars.push(bar);
                 // Устанавливаем времена первого и последнего видимых баров
@@ -236,10 +272,10 @@ export class Chart {
         const lastDateString = this.formatDateTime(lastDate);
         this.ctx.fillStyle = 'black';
         this.ctx.font = '12px Arial';
+        this.ctx.textAlign = 'left'; // Устанавливаем выравнивание текста по левому краю
         const timeRangeText = `Видимый диапазон: ${firstDateString} - ${lastDateString} (Интервал: ${currentInterval})`;
-        const textWidth = this.ctx.measureText(timeRangeText).width;
-        this.ctx.fillText(timeRangeText, width - textWidth - 10, 20);
-        // **Определяем количество меток и формат даты на основе уровня зума**
+        this.ctx.fillText(timeRangeText, this.padding, 20);
+        // Определяем количество меток и формат даты на основе уровня зума
         let labelCount;
         let includeDate = false;
         if (durationInMinutes <= 30) {
@@ -270,12 +306,8 @@ export class Chart {
             }
         }
         // Фиксированные позиции для меток дат
-        // Настройки текста
         this.ctx.fillStyle = 'black';
         this.ctx.font = '10px Arial';
-        const leftPadding = this.padding;
-        const rightPadding = this.padding;
-        const availableWidth = width - leftPadding - rightPadding;
         const labelY = height - 5; // Позиция Y для меток времени
         for (let i = 0; i < labelCount; i++) {
             let positionX = leftPadding + (i * availableWidth) / (labelCount - 1);
@@ -340,18 +372,19 @@ export class Chart {
     // Метод для прокрутки графика
     scroll(deltaX) {
         const width = this.canvas.width;
+        const leftPadding = this.padding;
+        const rightPadding = this.padding + 50; // 50 - ширина шкалы цен
+        const totalContentWidth = this.totalChartWidth - leftPadding - rightPadding;
         const maxOffsetX = 0;
         const minOffsetX = width - this.totalChartWidth;
         this.offsetX += deltaX;
-        // Ограничиваем прокрутку, чтобы не было пустого пространства
+        // Ограничиваем прокрутку
         if (this.totalChartWidth <= width) {
-            // Если график умещается на холсте, центрируем его и отключаем прокрутку
             this.offsetX = (width - this.totalChartWidth) / 2;
         }
         else {
-            // Если график больше холста, включаем прокрутку
-            this.offsetX = Math.min(this.offsetX, maxOffsetX); // Не прокручиваем дальше последних баров
-            this.offsetX = Math.max(this.offsetX, minOffsetX); // Не прокручиваем дальше первых баров
+            this.offsetX = Math.min(this.offsetX, maxOffsetX);
+            this.offsetX = Math.max(this.offsetX, minOffsetX);
         }
         this.render();
     }
