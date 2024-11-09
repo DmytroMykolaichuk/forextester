@@ -11,10 +11,15 @@ export class Chart {
         this.padding = 30;
         this.offsetXInitialized = false;
         this.totalChartWidth = 0;
-        // Обрабатываем данные и формируем общий массив баров
+        this.selectedBar = null;
+        this.selectedVolumeBarIndex = null;
+        this.canvasBoundingRect = this.canvas.getBoundingClientRect();
+        // Обрабатываем чанки данных и формируем массив баров
         this.processDataChunks();
+        // Добавляем обработчик клика по холсту
+        this.canvas.addEventListener('click', this.onCanvasClick.bind(this));
     }
-    // Метод для обработки чанков данных
+    // Метод для обработки чанков данных и формирования массива баров
     processDataChunks() {
         for (const chunk of this.dataChunks) {
             const chunkStart = chunk.ChunkStart;
@@ -31,7 +36,7 @@ export class Chart {
         // Сортируем бары по времени
         this.bars.sort((a, b) => a.getTime() - b.getTime());
     }
-    // Метод для группировки баров для текущего уровня зума
+    // Метод для группировки баров на основе уровня зума
     groupBarsByZoomLevel() {
         const zoomDurations = [
             24 * 60, // 1 день в минутах
@@ -72,7 +77,7 @@ export class Chart {
         }
         return groupedBars;
     }
-    // Метод для агрегации баров в группу
+    // Метод для агрегации группы баров в один бар
     aggregateBars(bars) {
         const open = bars[0].getOpen();
         const close = bars[bars.length - 1].getClose();
@@ -96,6 +101,10 @@ export class Chart {
         // Очистка canvas
         this.ctx.clearRect(0, 0, width, height);
         const groupedBars = this.groupBarsByZoomLevel();
+        // Если выбранный бар не установлен, по умолчанию выбираем последний видимый бар
+        if (!this.selectedBar && groupedBars.length > 0 && this.selectedVolumeBarIndex === null) {
+            this.selectedBar = groupedBars[groupedBars.length - 1];
+        }
         // Вычисление максимальной и минимальной цены
         const maxPrice = Math.max(...groupedBars.map(bar => bar.High));
         const minPrice = Math.min(...groupedBars.map(bar => bar.Low));
@@ -168,7 +177,7 @@ export class Chart {
         const visibleBars = [];
         // Параметры шкалы цен
         const numberOfIntervals = 5; // Количество интервалов между ценовыми уровнями
-        const numberOfPriceLevels = numberOfIntervals + 1; // Всего ценовых уровней (макс + мин + промежуточные)
+        const numberOfPriceLevels = numberOfIntervals + 1; // Всего ценовых уровней
         // Расчёт шагов по цене и позиции
         const priceStep = priceRange / numberOfIntervals;
         const pricePositions = [];
@@ -272,7 +281,7 @@ export class Chart {
         const lastDateString = this.formatDateTime(lastDate);
         this.ctx.fillStyle = 'black';
         this.ctx.font = '12px Arial';
-        this.ctx.textAlign = 'left'; // Устанавливаем выравнивание текста по левому краю
+        this.ctx.textAlign = 'left'; // Выравнивание текста по левому краю
         const timeRangeText = `Видимый диапазон: ${firstDateString} - ${lastDateString} (Интервал: ${currentInterval})`;
         this.ctx.fillText(timeRangeText, this.padding, 20);
         // Определяем количество меток и формат даты на основе уровня зума
@@ -338,6 +347,92 @@ export class Chart {
         }
         // Возвращаем выравнивание текста по умолчанию
         this.ctx.textAlign = 'left';
+        // Отрисовка плашки над выбранным объёмным блоком
+        if (this.selectedVolumeBarIndex !== null) {
+            const index = this.selectedVolumeBarIndex;
+            const bar = groupedBars[index];
+            const barX = this.offsetX + leftPadding + index * (barWidth + barSpacing);
+            // Позиция Y для объёмного блока
+            const volumeHeight = (bar.TickVolume / maxVolume) * volumeBarHeight;
+            const minVolumeHeight = 1;
+            const actualVolumeHeight = Math.max(volumeHeight, minVolumeHeight);
+            const volumeY = height - dateLabelHeight - actualVolumeHeight;
+            // Подготовка данных для плашки
+            const volumeText = `Объём: ${bar.TickVolume}`;
+            // Устанавливаем шрифт и вычисляем размеры плашки
+            this.ctx.font = '10px Arial';
+            const labelWidth = this.ctx.measureText(volumeText).width + 10;
+            const labelHeight = 20;
+            // Позиционирование плашки над объёмным блоком
+            let labelX = barX - labelWidth / 2;
+            let labelY = volumeY - labelHeight - 5;
+            // Убедимся, что плашка не выходит за границы графика
+            if (labelX < leftPadding) {
+                labelX = leftPadding;
+            }
+            else if (labelX + labelWidth > width - rightPadding) {
+                labelX = width - rightPadding - labelWidth;
+            }
+            if (labelY < topPadding) {
+                labelY = topPadding;
+            }
+            // Отрисовка плашки с закруглёнными краями
+            this.drawRoundedRect(labelX, labelY, labelWidth, labelHeight, 5, '#f0f0f0');
+            // Отрисовка текста на плашке
+            this.ctx.fillStyle = 'black';
+            this.ctx.textAlign = 'center';
+            const textX = labelX + labelWidth / 2;
+            const textY = labelY + labelHeight / 2 + 3;
+            this.ctx.fillText(volumeText, textX, textY);
+        }
+        // Отрисовка линии и плашки над выбранным баром
+        if (this.selectedBar) {
+            // Определяем индекс выбранного бара
+            const selectedBarIndex = groupedBars.findIndex(bar => bar.Time === this.selectedBar.Time);
+            // Координата X выбранного бара
+            const barX = this.offsetX + leftPadding + selectedBarIndex * (barWidth + barSpacing);
+            // Цена верхней границы тела бара (максимум между Open и Close)
+            const barTopPrice = Math.max(this.selectedBar.Open, this.selectedBar.Close);
+            // Координата Y для линии
+            const lineY = topPadding + ((maxPrice - barTopPrice) / priceRange) * availableHeight;
+            // Отрисовка тонкой чёрной линии через весь график, включая отступы
+            this.ctx.strokeStyle = 'black';
+            this.ctx.lineWidth = 1;
+            this.ctx.beginPath();
+            this.ctx.moveTo(0, lineY);
+            this.ctx.lineTo(width, lineY);
+            this.ctx.stroke();
+            // Подготовка данных для плашки
+            const priceText = `${barTopPrice}$`; // Отображаем цену без округления и добавляем символ `$`
+            const date = new Date((this.selectedBar.Time + durationInSeconds) * 1000);
+            const dateText = this.formatDate(date);
+            const timeText = this.formatTime(date);
+            const labelLines = [priceText, dateText, timeText];
+            // Устанавливаем шрифт и вычисляем размеры плашки
+            this.ctx.font = '10px Arial';
+            const labelWidth = Math.max(...labelLines.map(text => this.ctx.measureText(text).width)) + 10;
+            const labelHeight = labelLines.length * 12 + 10; // Высота плашки с учётом количества строк
+            // Позиционирование плашки вплотную к правому краю полотна
+            const labelX = width - labelWidth; // Позиция на самом краю полотна
+            let labelY = lineY - labelHeight / 2;
+            // Убедимся, что плашка не выходит за границы графика по вертикали
+            if (labelY < topPadding) {
+                labelY = topPadding;
+            }
+            else if (labelY + labelHeight > height - bottomPadding) {
+                labelY = height - bottomPadding - labelHeight;
+            }
+            // Отрисовка плашки с закруглёнными краями
+            this.drawRoundedRect(labelX, labelY, labelWidth, labelHeight, 5, 'black');
+            // Отрисовка текста на плашке
+            this.ctx.fillStyle = 'white';
+            this.ctx.textAlign = 'left'; // Выравнивание текста по левому краю
+            const textX = labelX + 5;
+            const textY = labelY + 15;
+            labelLines.forEach((text, index) => {
+                this.ctx.fillText(text, textX, textY + index * 12);
+            });
+        }
     }
     // Метод для форматирования даты
     formatDate(date) {
@@ -345,18 +440,13 @@ export class Chart {
             .toString()
             .padStart(2, '0')}.${date.getFullYear()}`;
     }
-    // Метод для форматирования даты и времени
-    formatDateTime(date) {
-        return `${date.getDate().toString().padStart(2, '0')}.${(date.getMonth() + 1)
-            .toString()
-            .padStart(2, '0')}.${date.getFullYear()} ${date
-            .getHours()
-            .toString()
-            .padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
-    }
     // Метод для форматирования времени
     formatTime(date) {
         return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+    }
+    // Метод для форматирования даты и времени
+    formatDateTime(date) {
+        return `${this.formatDate(date)} ${this.formatTime(date)}`;
     }
     // Метод для масштабирования графика
     zoom(zoomIn) {
@@ -367,6 +457,15 @@ export class Chart {
             this.zoomLevel++;
         }
         this.offsetXInitialized = false; // При зуме нужно пересчитать offsetX
+        // Устанавливаем выбранный бар на последний бар после изменения зума
+        const groupedBars = this.groupBarsByZoomLevel();
+        if (groupedBars.length > 0) {
+            this.selectedBar = groupedBars[groupedBars.length - 1];
+        }
+        else {
+            this.selectedBar = null;
+        }
+        this.selectedVolumeBarIndex = null; // Сбрасываем выбранный объёмный блок
         this.render();
     }
     // Метод для прокрутки графика
@@ -387,5 +486,108 @@ export class Chart {
             this.offsetX = Math.max(this.offsetX, minOffsetX);
         }
         this.render();
+    }
+    // Обработчик клика по холсту
+    onCanvasClick(event) {
+        this.canvasBoundingRect = this.canvas.getBoundingClientRect();
+        const mouseX = event.clientX - this.canvasBoundingRect.left;
+        const mouseY = event.clientY - this.canvasBoundingRect.top;
+        const volumeBarIndex = this.getVolumeBarAtPosition(mouseX, mouseY);
+        if (volumeBarIndex !== null) {
+            // Клик по объёмному блоку
+            this.selectedVolumeBarIndex = volumeBarIndex;
+            this.selectedBar = null; // Сбрасываем выбранный бар
+            this.render();
+        }
+        else {
+            const bar = this.getBarAtPosition(mouseX, mouseY);
+            if (bar) {
+                this.selectedBar = bar;
+                this.selectedVolumeBarIndex = null; // Сбрасываем выбранный объёмный блок
+                this.render();
+            }
+        }
+    }
+    // Метод для определения бара под курсором
+    getBarAtPosition(x, y) {
+        const width = this.canvas.width;
+        const height = this.canvas.height;
+        // Параметры отрисовки (должны совпадать с параметрами в методе render)
+        const barSpacing = 5;
+        const barWidth = 10;
+        const topPadding = 30;
+        const volumeBarHeight = 30;
+        const dateLabelHeight = 20;
+        const bottomPadding = volumeBarHeight + dateLabelHeight;
+        const priceScaleWidth = 50;
+        const leftPadding = this.padding;
+        const rightPadding = this.padding + priceScaleWidth;
+        const availableHeight = height - topPadding - bottomPadding;
+        // Вычисление maxPrice и minPrice так же, как в render()
+        const groupedBars = this.groupBarsByZoomLevel();
+        const maxPrice = Math.max(...groupedBars.map(bar => bar.High));
+        const minPrice = Math.min(...groupedBars.map(bar => bar.Low));
+        let priceRange = maxPrice - minPrice;
+        if (priceRange === 0) {
+            priceRange = maxPrice * 0.01;
+        }
+        // Проходим по всем барам и проверяем, попадает ли координата в область бара
+        for (let i = 0; i < groupedBars.length; i++) {
+            const bar = groupedBars[i];
+            const barX = this.offsetX + leftPadding + i * (barWidth + barSpacing);
+            if (x >= barX - barWidth / 2 && x <= barX + barWidth / 2) {
+                // Координаты Y для бара
+                const highY = topPadding + ((maxPrice - bar.High) / priceRange) * availableHeight;
+                const lowY = topPadding + ((maxPrice - bar.Low) / priceRange) * availableHeight;
+                if (y >= highY && y <= lowY) {
+                    return bar;
+                }
+            }
+        }
+        return null;
+    }
+    // Метод для определения объёмного блока под курсором
+    getVolumeBarAtPosition(x, y) {
+        const width = this.canvas.width;
+        const height = this.canvas.height;
+        // Параметры отрисовки (должны совпадать с параметрами в методе render)
+        const barSpacing = 5;
+        const barWidth = 10;
+        const volumeBarHeight = 30;
+        const dateLabelHeight = 20;
+        const bottomPadding = volumeBarHeight + dateLabelHeight;
+        const priceScaleWidth = 50;
+        const leftPadding = this.padding;
+        const rightPadding = this.padding + priceScaleWidth;
+        const groupedBars = this.groupBarsByZoomLevel();
+        // Проходим по всем объёмным блокам и проверяем, попадает ли координата в область блока
+        for (let i = 0; i < groupedBars.length; i++) {
+            const barX = this.offsetX + leftPadding + i * (barWidth + barSpacing);
+            const volumeYStart = height - dateLabelHeight - volumeBarHeight;
+            const volumeYEnd = height - dateLabelHeight;
+            if (x >= barX - barWidth / 2 &&
+                x <= barX + barWidth / 2 &&
+                y >= volumeYStart &&
+                y <= volumeYEnd) {
+                return i; // Возвращаем индекс объёмного блока
+            }
+        }
+        return null;
+    }
+    // Метод для отрисовки прямоугольника с закруглёнными краями
+    drawRoundedRect(x, y, width, height, radius, fillColor) {
+        this.ctx.beginPath();
+        this.ctx.moveTo(x + radius, y);
+        this.ctx.lineTo(x + width - radius, y);
+        this.ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+        this.ctx.lineTo(x + width, y + height - radius);
+        this.ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+        this.ctx.lineTo(x + radius, y + height);
+        this.ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+        this.ctx.lineTo(x, y + radius);
+        this.ctx.quadraticCurveTo(x, y, x + radius, y);
+        this.ctx.closePath();
+        this.ctx.fillStyle = fillColor;
+        this.ctx.fill();
     }
 }
