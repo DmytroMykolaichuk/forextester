@@ -598,12 +598,12 @@ export class Chart {
         this.canvasBoundingRect = this.canvas.getBoundingClientRect();
         const mouseX = event.clientX - this.canvasBoundingRect.left;
         const mouseY = event.clientY - this.canvasBoundingRect.top;
-
+    
         const volumeBarIndex = this.getVolumeBarAtPosition(mouseX, mouseY);
         if (volumeBarIndex !== null) {
             // Клик по объёмному блоку
             this.selectedVolumeBarIndex = volumeBarIndex;
-            this.selectedBar = null; // Сбрасываем выбранный бар
+            // Не сбрасываем this.selectedBar, чтобы линия и плашка не исчезали
             this.render();
         } else {
             const bar = this.getBarAtPosition(mouseX, mouseY);
@@ -614,6 +614,7 @@ export class Chart {
             }
         }
     }
+    
 
     // Метод для определения бара под курсором
     private getBarAtPosition(x: number, y: number): BarData | null {

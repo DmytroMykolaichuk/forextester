@@ -496,7 +496,7 @@ export class Chart {
         if (volumeBarIndex !== null) {
             // Клик по объёмному блоку
             this.selectedVolumeBarIndex = volumeBarIndex;
-            this.selectedBar = null; // Сбрасываем выбранный бар
+            // Не сбрасываем this.selectedBar, чтобы линия и плашка не исчезали
             this.render();
         }
         else {
