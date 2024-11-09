@@ -66,87 +66,121 @@ export class Chart {
     public render() {
         const width = this.canvas.width;
         const height = this.canvas.height;
-
+    
         // Очистка canvas
         this.ctx.clearRect(0, 0, width, height);
-
-        // Отрисовка названия графика (ChunkStart как дата)
+    
+        // Отрисовка названия графика
         const chunkStartDate = new Date(this.chunkStart * 1000);
         this.ctx.fillStyle = 'black';
         this.ctx.font = '12px Arial';
         this.ctx.fillText(`Data from: ${chunkStartDate.toLocaleDateString('ua-UA')}`, 10, 20);
-
+    
         const groupedBars = this.groupBarsByZoomLevel();
-
-        // Найдем максимальную и минимальную цену для нормализации
+    
+        // Вычисление максимальной и минимальной цены
         const maxPrice = Math.max(...groupedBars.map(bar => bar.High));
         const minPrice = Math.min(...groupedBars.map(bar => bar.Low));
-        const priceRange = maxPrice - minPrice;
-
-        // Устанавливаем стиль для линий и текста
-        this.ctx.lineWidth = 1;
-
-        // Отрисовываем каждый бар
+        let priceRange = maxPrice - minPrice;
+    
+        // Обработка случая, когда priceRange равен нулю
+        if (priceRange === 0) {
+            priceRange = maxPrice * 0.01; // Устанавливаем минимальный диапазон
+        }
+    
+        // Параметры отрисовки
         const barSpacing = 5;
         const barWidth = 10;
-        const availableHeight = height - 80;
-
-        // Рассчитываем общую ширину графика
+        const topPadding = 30;
+        const bottomPadding = 50; // Дополнительное пространство для объёма
+        const availableHeight = height - topPadding - bottomPadding;
+    
+        // Общая ширина графика
         const totalBars = groupedBars.length;
         this.totalChartWidth = totalBars * (barWidth + barSpacing) - barSpacing + this.padding * 2;
-
-        // Вычисляем максимальное и минимальное смещение по X
+    
+        // Смещение по X
         const maxOffsetX = 0;
         const minOffsetX = width - this.totalChartWidth;
-
-        // Инициализируем offsetX при первом рендере или после изменения зума
+    
         if (!this.offsetXInitialized) {
             if (this.totalChartWidth <= width) {
-                // Если график умещается на холсте, центрируем его
                 this.offsetX = (width - this.totalChartWidth) / 2;
             } else {
-                // Если график больше холста, отображаем последние бары
                 this.offsetX = minOffsetX;
             }
             this.offsetXInitialized = true;
         }
-
+    
+        // Максимальный объём для нормализации высоты столбиков объёма
+        const maxVolume = Math.max(...groupedBars.map(bar => bar.TickVolume)) || 1; // Избегаем деления на ноль
+    
         groupedBars.forEach((bar, index) => {
             const barX = index * (barWidth + barSpacing) + this.offsetX + this.padding;
-
-            // Нормализуем координаты Y для отображения
-            const barOpenY = height - ((bar.Open - minPrice) / priceRange) * availableHeight - 30;
-            const barCloseY = height - ((bar.Close - minPrice) / priceRange) * availableHeight - 30;
-            const barHighY = height - ((bar.High - minPrice) / priceRange) * availableHeight - 30;
-            const barLowY = height - ((bar.Low - minPrice) / priceRange) * availableHeight - 30;
-
-            // Проверяем, находится ли бар в пределах видимости
-            if (barX + barWidth > 0 && barX - barWidth < width) {
-                // Устанавливаем цвет бара в зависимости от направления движения цены
+    
+            // Координаты Y для бара
+            const openY = topPadding + ((maxPrice - bar.Open) / priceRange) * availableHeight;
+            const closeY = topPadding + ((maxPrice - bar.Close) / priceRange) * availableHeight;
+            const highY = topPadding + ((maxPrice - bar.High) / priceRange) * availableHeight;
+            const lowY = topPadding + ((maxPrice - bar.Low) / priceRange) * availableHeight;
+    
+            // Определяем верхнюю и нижнюю точки тела бара
+            let barTopY = Math.min(openY, closeY);
+            let barBottomY = Math.max(openY, closeY);
+    
+            // Вычисляем высоту тела бара
+            let barHeight = barBottomY - barTopY;
+    
+            // Устанавливаем минимальную высоту бара
+            const minBarHeight = 1; // Минимальная высота бара в пикселях
+            if (barHeight < minBarHeight) {
+                barHeight = minBarHeight;
+                // Центрируем бар по вертикали между openY и closeY
+                const barCenterY = (openY + closeY) / 2;
+                barTopY = barCenterY - barHeight / 2;
+                barBottomY = barCenterY + barHeight / 2;
+            }
+    
+            // Проверка видимости бара
+            if (barX + barWidth >= 0 && barX - barWidth <= width) {
+                // Установка цвета бара
                 if (bar.Close > bar.Open) {
-                    this.ctx.fillStyle = 'green'; // восходящий бар
+                    this.ctx.fillStyle = 'green';
+                } else if (bar.Close < bar.Open) {
+                    this.ctx.fillStyle = 'red';
                 } else {
-                    this.ctx.fillStyle = 'red'; // нисходящий бар
+                    this.ctx.fillStyle = 'gray';
                 }
-
-                // Рисуем линии High и Low
+    
+                // Отрисовка High и Low (тени)
                 this.ctx.strokeStyle = 'black';
                 this.ctx.beginPath();
-                this.ctx.moveTo(barX, barHighY);
-                this.ctx.lineTo(barX, barLowY);
+                this.ctx.moveTo(barX, highY);
+                this.ctx.lineTo(barX, lowY);
                 this.ctx.stroke();
-
-                // Рисуем тело бара
-                this.ctx.fillRect(barX - barWidth / 2, Math.min(barOpenY, barCloseY), barWidth, Math.abs(barOpenY - barCloseY));
-
-                // Рисуем объем под каждой свечой (Tick Volume)
-                const maxVolume = Math.max(...groupedBars.map(bar => bar.TickVolume));
-                const volumeHeight = (bar.TickVolume / maxVolume) * 50;
+    
+                // Отрисовка тела бара
+                this.ctx.fillRect(barX - barWidth / 2, barTopY, barWidth, barHeight);
+    
+                // Отрисовка объёма под каждой свечой (Tick Volume)
+                // Вычисляем высоту объёма с минимальной высотой
+                let volumeHeight = (bar.TickVolume / maxVolume) * (bottomPadding - 10);
+                const minVolumeHeight = 1; // Минимальная высота объёма
+                if (volumeHeight < minVolumeHeight) {
+                    volumeHeight = minVolumeHeight;
+                }
+    
+                // Позиция Y для объёма
+                const volumeY = height - volumeHeight - 10; // Отступ в 10 пикселей от нижнего края
+    
+                // Отрисовка объёма
                 this.ctx.fillStyle = 'blue';
-                this.ctx.fillRect(barX - barWidth / 2, height - volumeHeight - 20, barWidth, volumeHeight);
+                this.ctx.fillRect(barX - barWidth / 2, volumeY, barWidth, volumeHeight);
             }
         });
     }
+    
+    
 
     // Метод для масштабирования графика
     public zoom(zoomIn: boolean) {
