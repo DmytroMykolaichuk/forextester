@@ -207,7 +207,24 @@ export class Chart {
                     this.ctx.fillText(text, textX, textY + index * 12);
                 });
             }
+    }
+    
+    private drawVolumeBars(bar: Bar, maxVolume: number, volumeBarHeight: number, barWidth: number,  height: number, dateLabelHeight: number, barX: number) {
+
+        // Відображення об'єму під кожною свічкою (Tick Volume)
+        let volumeHeight = (bar.getTickVolume() / maxVolume) * volumeBarHeight;
+        const minVolumeHeight = 1; // Мінімальна висота об'єму
+        if (volumeHeight < minVolumeHeight) {
+            volumeHeight = minVolumeHeight;
         }
+
+        // Позиція Y для об'єму
+        const volumeY = height - dateLabelHeight - volumeHeight; // Над мітками дат
+
+        // Відображення об'єму
+        this.ctx.fillStyle = 'blue';
+        this.ctx.fillRect(barX - barWidth / 2, volumeY, barWidth, volumeHeight);
+}
 
     // Метод для відображення графіку
     public render() {
@@ -318,7 +335,7 @@ export class Chart {
         // Відображення барів
         groupedBars.forEach((bar, index) => {
             const barX = this.offsetX + leftPadding + index * (barWidth + barSpacing);
-
+            this.drawVolumeBars(bar, maxVolume, volumeBarHeight, barWidth,  height, dateLabelHeight, barX)
             const {highY, lowY, barTopY, barHeight} = bar.calculateBarDimensions(maxPrice, priceRange, topPadding, availableHeight)
 
             // Перевірка видимості бару
@@ -345,19 +362,6 @@ export class Chart {
                 // Відображення тіла бару
                 this.ctx.fillRect(barX - barWidth / 2, barTopY, barWidth, barHeight);
 
-                // Відображення об'єму під кожною свічкою (Tick Volume)
-                let volumeHeight = (bar.getTickVolume() / maxVolume) * volumeBarHeight;
-                const minVolumeHeight = 1; // Мінімальна висота об'єму
-                if (volumeHeight < minVolumeHeight) {
-                    volumeHeight = minVolumeHeight;
-                }
-
-                // Позиція Y для об'єму
-                const volumeY = height - dateLabelHeight - volumeHeight; // Над мітками дат
-
-                // Відображення об'єму
-                this.ctx.fillStyle = 'blue';
-                this.ctx.fillRect(barX - barWidth / 2, volumeY, barWidth, volumeHeight);
             }
         });
 
@@ -498,6 +502,7 @@ export class Chart {
         // Відображення лінії та плашки над вибраним баром
         this.drawSelectedBarHighlight(groupedBars, maxPrice, priceRange, topPadding, availableHeight, width, durationInSeconds, bottomPadding)
     }
+
 
 
 

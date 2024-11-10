@@ -175,6 +175,19 @@ export class Chart {
             });
         }
     }
+    drawVolumeBars(bar, maxVolume, volumeBarHeight, barWidth, height, dateLabelHeight, barX) {
+        // Відображення об'єму під кожною свічкою (Tick Volume)
+        let volumeHeight = (bar.getTickVolume() / maxVolume) * volumeBarHeight;
+        const minVolumeHeight = 1; // Мінімальна висота об'єму
+        if (volumeHeight < minVolumeHeight) {
+            volumeHeight = minVolumeHeight;
+        }
+        // Позиція Y для об'єму
+        const volumeY = height - dateLabelHeight - volumeHeight; // Над мітками дат
+        // Відображення об'єму
+        this.ctx.fillStyle = 'blue';
+        this.ctx.fillRect(barX - barWidth / 2, volumeY, barWidth, volumeHeight);
+    }
     // Метод для відображення графіку
     render() {
         const width = this.canvas.width;
@@ -265,6 +278,7 @@ export class Chart {
         // Відображення барів
         groupedBars.forEach((bar, index) => {
             const barX = this.offsetX + leftPadding + index * (barWidth + barSpacing);
+            this.drawVolumeBars(bar, maxVolume, volumeBarHeight, barWidth, height, dateLabelHeight, barX);
             const { highY, lowY, barTopY, barHeight } = bar.calculateBarDimensions(maxPrice, priceRange, topPadding, availableHeight);
             // Перевірка видимості бару
             if (barX + barWidth >= leftPadding && barX - barWidth <= width - rightPadding) {
@@ -285,17 +299,6 @@ export class Chart {
                 this.ctx.stroke();
                 // Відображення тіла бару
                 this.ctx.fillRect(barX - barWidth / 2, barTopY, barWidth, barHeight);
-                // Відображення об'єму під кожною свічкою (Tick Volume)
-                let volumeHeight = (bar.getTickVolume() / maxVolume) * volumeBarHeight;
-                const minVolumeHeight = 1; // Мінімальна висота об'єму
-                if (volumeHeight < minVolumeHeight) {
-                    volumeHeight = minVolumeHeight;
-                }
-                // Позиція Y для об'єму
-                const volumeY = height - dateLabelHeight - volumeHeight; // Над мітками дат
-                // Відображення об'єму
-                this.ctx.fillStyle = 'blue';
-                this.ctx.fillRect(barX - barWidth / 2, volumeY, barWidth, volumeHeight);
             }
         });
         // Якщо немає видимих барів, виходимо з методу
