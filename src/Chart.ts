@@ -246,6 +246,21 @@ export class Chart {
                     
     }
 
+    // Метод для відображення видимого діапазону барів
+    private updateVisibleBars(bar: Bar, durationInSeconds: number, leftPadding: number, barWidth: number, barX: number) {
+        // Масив для зберігання видимих барів
+        const visibleBars: Bar[] = [];
+        // Перевірка видимості бару
+        if (barX + barWidth >= leftPadding && barX - barWidth <= this.canvas.width - leftPadding) {
+            visibleBars.push(bar);
+            // Встановлюємо часи першого та останнього видимих барів
+            if (visibleBars.length === 1) {
+                this.firstVisibleBarTime = bar.getTime();
+            }
+                this.lastVisibleBarTime = bar.getTime() + durationInSeconds;
+            }
+    }
+
     // Метод для відображення графіку
     public render() {
         const width = this.canvas.width;
@@ -286,7 +301,7 @@ export class Chart {
         const availableHeight = height - topPadding - bottomPadding;
 
         // Визначення тривалості бару та поточного інтервалу
-        const {  currentInterval, durationInSeconds,durationInMinutes }=this.getVisibleRangeAndInterval()
+        const {  currentInterval, durationInSeconds, durationInMinutes }=this.getVisibleRangeAndInterval()
 
         // Загальна ширина графіка
         const totalBars = groupedBars.length;
@@ -309,13 +324,8 @@ export class Chart {
         // Максимальний об'єм для нормалізації висоти стовпчиків об'єму
         const maxVolume = Math.max(...groupedBars.map(bar => bar.getTickVolume())) || 1; // Уникаємо ділення на нуль
 
-        
-        // Масив для зберігання видимих барів
-        const visibleBars: Bar[] = [];
-
         // Параметри шкали цін
         const numberOfIntervals = 5; // Кількість інтервалів між ціновими рівнями
-        const numberOfPriceLevels = numberOfIntervals + 1; // Загальна кількість цінових рівнів
 
         // Розрахунок кроків по ціні та позиції
         const priceStep = priceRange / numberOfIntervals;
@@ -357,25 +367,9 @@ export class Chart {
             const barX = this.offsetX + leftPadding + index * (barWidth + barSpacing);
             this.drawVolumeBars(bar, maxVolume, volumeBarHeight, barWidth,  height, dateLabelHeight, barX)
             this.drawBars(bar, maxPrice, priceRange, topPadding, availableHeight, barWidth, barX)
-
             // Перевірка видимості бару
-            if (barX + barWidth >= leftPadding && barX - barWidth <= width - rightPadding) {
-                // Додаємо бар в масив видимих барів
-                visibleBars.push(bar);
-
-                // Встановлюємо часи першого та останнього видимих барів
-                if (visibleBars.length === 1) {
-                    this.firstVisibleBarTime = bar.getTime();
-                }
-                this.lastVisibleBarTime = bar.getTime() + durationInSeconds;
-
-            }
+            this.updateVisibleBars(bar, durationInSeconds, leftPadding, barWidth, barX) 
         });
-
-        // Якщо немає видимих барів, виходимо з методу
-        if (visibleBars.length === 0) {
-            return;
-        }
 
         // Відображення часових діапазонів видимих барів та поточного інтервалу
         const firstDate = new Date(this.firstVisibleBarTime * 1000);
