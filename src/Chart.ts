@@ -144,6 +144,19 @@ export class Chart {
     const durationInSeconds = durationInMinutes * 60;
     const currentInterval = intervals[Math.max(0, Math.min(this.zoomLevel, intervals.length - 1))];
 
+    // Відображення часових діапазонів видимих барів та поточного інтервалу
+    const firstDate = new Date(this.firstVisibleBarTime * 1000);
+    const lastDate = new Date(this.lastVisibleBarTime * 1000);
+
+    const firstDateString = this.formatDateTime(firstDate);
+    const lastDateString = this.formatDateTime(lastDate);
+
+    this.ctx.fillStyle = 'black';
+    this.ctx.font = '12px Arial';
+    this.ctx.textAlign = 'left'; // Вирівнювання тексту по лівому краю
+    const timeRangeText = `Visible Range: ${firstDateString} - ${lastDateString} (Interval: ${currentInterval})`;
+    this.ctx.fillText(timeRangeText, this.padding, 20);
+
     return {currentInterval, durationInSeconds,durationInMinutes };
     }
     
@@ -301,6 +314,74 @@ export class Chart {
             });
     }
 
+    // Метод для відображення шкали дат і часу
+    private drawDateScale(durationInMinutes:number,leftPadding:number,height:number,availableWidth:number) {
+        // Визначення кількості міток та формат дати на основі рівня зума
+        let labelCount: number;
+        let includeDate: boolean = false;
+        
+        if (durationInMinutes <= 30) {
+            // 1, 5, 15, 30 хвилин
+            labelCount = 6;
+            includeDate = false;
+        } else if (durationInMinutes <= 180) {
+            // 1, 3 години
+            labelCount = 5;
+            includeDate = true;
+        } else if (durationInMinutes <= 720) {
+            // 6, 12 годин
+            labelCount = 4;
+            includeDate = true;
+        } else {
+            // 1 день
+            // Визначаємо кількість днів між першим та останнім видимим баром
+            const startDate = new Date(this.firstVisibleBarTime * 1000);
+            const endDate = new Date(this.lastVisibleBarTime * 1000);
+            const dayDifference = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+        
+            labelCount = Math.min(dayDifference, 4);
+            includeDate = true;
+        
+            if (labelCount < 2) {
+                labelCount = 2; // Мінімум 2 мітки для днів
+            }
+        }
+        
+        // Фіксовані позиції для міток дат
+        this.ctx.fillStyle = 'black';
+        this.ctx.font = '10px Arial';
+        
+        const labelY = height - 5; // Позиція Y для міток часу
+        
+        for (let i = 0; i < labelCount; i++) {
+            let positionX = leftPadding + (i * availableWidth) / (labelCount - 1);
+            const time = this.firstVisibleBarTime + (i * (this.lastVisibleBarTime - this.firstVisibleBarTime)) / (labelCount - 1);
+        
+            const date = new Date(time * 1000);
+            let dateString: string;
+        
+            if (durationInMinutes >= 1440) { // Якщо інтервал 1 день або більше
+                dateString = this.formatDate(date);
+            } else if (includeDate) {
+                dateString = this.formatDateTime(date);
+            } else {
+                dateString = this.formatTime(date);
+            }
+        
+            // Налаштування вирівнювання тексту
+            if (i === 0) {
+                this.ctx.textAlign = 'left';
+            } else if (i === labelCount - 1) {
+                this.ctx.textAlign = 'right';
+            } else {
+                this.ctx.textAlign = 'center';
+            }
+        
+            // Відображення мітки часу
+            this.ctx.fillText(dateString, positionX, labelY);
+        }
+            }
+
     // Метод для відображення графіку
     public render() {
         const width = this.canvas.width;
@@ -376,83 +457,10 @@ export class Chart {
             this.updateVisibleBars(bar, durationInSeconds, leftPadding, barWidth, barX) 
         });
 
-        // Відображення часових діапазонів видимих барів та поточного інтервалу
-        const firstDate = new Date(this.firstVisibleBarTime * 1000);
-        const lastDate = new Date(this.lastVisibleBarTime * 1000);
 
-        const firstDateString = this.formatDateTime(firstDate);
-        const lastDateString = this.formatDateTime(lastDate);
 
-        this.ctx.fillStyle = 'black';
-        this.ctx.font = '12px Arial';
-        this.ctx.textAlign = 'left'; // Вирівнювання тексту по лівому краю
-        const timeRangeText = `Visible Range: ${firstDateString} - ${lastDateString} (Interval: ${currentInterval})`;
-        this.ctx.fillText(timeRangeText, this.padding, 20);
+        this.drawDateScale(durationInMinutes,leftPadding,height,availableWidth)
 
-        // Визначення кількості міток та формат дати на основі рівня зума
-        let labelCount: number;
-        let includeDate: boolean = false;
-
-        if (durationInMinutes <= 30) {
-            // 1, 5, 15, 30 хвилин
-            labelCount = 6;
-            includeDate = false;
-        } else if (durationInMinutes <= 180) {
-            // 1, 3 години
-            labelCount = 5;
-            includeDate = true;
-        } else if (durationInMinutes <= 720) {
-            // 6, 12 годин
-            labelCount = 4;
-            includeDate = true;
-        } else {
-            // 1 день
-            // Визначаємо кількість днів між першим та останнім видимим баром
-            const startDate = new Date(this.firstVisibleBarTime * 1000);
-            const endDate = new Date(this.lastVisibleBarTime * 1000);
-            const dayDifference = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-
-            labelCount = Math.min(dayDifference, 4);
-            includeDate = true;
-
-            if (labelCount < 2) {
-                labelCount = 2; // Мінімум 2 мітки для днів
-            }
-        }
-
-        // Фіксовані позиції для міток дат
-        this.ctx.fillStyle = 'black';
-        this.ctx.font = '10px Arial';
-
-        const labelY = height - 5; // Позиція Y для міток часу
-
-        for (let i = 0; i < labelCount; i++) {
-            let positionX = leftPadding + (i * availableWidth) / (labelCount - 1);
-            const time = this.firstVisibleBarTime + (i * (this.lastVisibleBarTime - this.firstVisibleBarTime)) / (labelCount - 1);
-
-            const date = new Date(time * 1000);
-            let dateString: string;
-
-            if (durationInMinutes >= 1440) { // Якщо інтервал 1 день або більше
-                dateString = this.formatDate(date);
-            } else if (includeDate) {
-                dateString = this.formatDateTime(date);
-            } else {
-                dateString = this.formatTime(date);
-            }
-
-            // Налаштування вирівнювання тексту
-            if (i === 0) {
-                this.ctx.textAlign = 'left';
-            } else if (i === labelCount - 1) {
-                this.ctx.textAlign = 'right';
-            } else {
-                this.ctx.textAlign = 'center';
-            }
-
-            // Відображення мітки часу
-            this.ctx.fillText(dateString, positionX, labelY);
-        }
 
         // Повертаємо вирівнювання тексту за замовчуванням
         this.ctx.textAlign = 'left';

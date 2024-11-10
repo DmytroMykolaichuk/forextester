@@ -123,6 +123,16 @@ export class Chart {
         const durationInMinutes = zoomDurations[Math.max(0, Math.min(this.zoomLevel, zoomDurations.length - 1))];
         const durationInSeconds = durationInMinutes * 60;
         const currentInterval = intervals[Math.max(0, Math.min(this.zoomLevel, intervals.length - 1))];
+        // Відображення часових діапазонів видимих барів та поточного інтервалу
+        const firstDate = new Date(this.firstVisibleBarTime * 1000);
+        const lastDate = new Date(this.lastVisibleBarTime * 1000);
+        const firstDateString = this.formatDateTime(firstDate);
+        const lastDateString = this.formatDateTime(lastDate);
+        this.ctx.fillStyle = 'black';
+        this.ctx.font = '12px Arial';
+        this.ctx.textAlign = 'left'; // Вирівнювання тексту по лівому краю
+        const timeRangeText = `Visible Range: ${firstDateString} - ${lastDateString} (Interval: ${currentInterval})`;
+        this.ctx.fillText(timeRangeText, this.padding, 20);
         return { currentInterval, durationInSeconds, durationInMinutes };
     }
     // Метод для відображення чорної лінії та плашки над вибраним баром
@@ -251,77 +261,8 @@ export class Chart {
             this.ctx.fillText(priceText, width - priceScaleWidth + priceScalePadding, position.y + 3);
         });
     }
-    // Метод для відображення графіку
-    render() {
-        const width = this.canvas.width;
-        const height = this.canvas.height;
-        // Очищення canvas
-        this.ctx.clearRect(0, 0, width, height);
-        const groupedBars = this.groupBarsByZoomLevel();
-        // Якщо вибраний бар не встановлений, за замовчуванням вибираємо останній видимий бар
-        if (!this.selectedBar && groupedBars.length > 0 && this.selectedVolumeBarIndex === null) {
-            this.selectedBar = groupedBars[groupedBars.length - 1];
-        }
-        // Визначення максимальної та мінімальної ціни
-        const maxPrice = Math.max(...groupedBars.map(bar => bar.getHigh()));
-        const minPrice = Math.min(...groupedBars.map(bar => bar.getLow()));
-        let priceRange = maxPrice - minPrice;
-        // Обробка випадку, коли priceRange дорівнює нулю
-        if (priceRange === 0) {
-            priceRange = maxPrice * 0.01; // Встановлюємо мінімальний діапазон
-        }
-        // Параметри відображення
-        const barSpacing = 5;
-        const barWidth = 10;
-        const topPadding = 30;
-        const volumeBarHeight = 30; // Фіксована висота для об'ємів
-        const dateLabelHeight = 20; // Висота для міток дат
-        const bottomPadding = volumeBarHeight + dateLabelHeight; // Загальний нижній відступ
-        const priceScaleWidth = 50; // Ширина шкали цін
-        const priceScalePadding = 5; // Внутрішній відступ для шкали цін
-        const leftPadding = this.padding;
-        const rightPadding = this.padding + priceScaleWidth;
-        const availableWidth = width - leftPadding - rightPadding;
-        const availableHeight = height - topPadding - bottomPadding;
-        // Визначення тривалості бару та поточного інтервалу
-        const { currentInterval, durationInSeconds, durationInMinutes } = this.getVisibleRangeAndInterval();
-        // Загальна ширина графіка
-        const totalBars = groupedBars.length;
-        const totalBarsWidth = totalBars * (barWidth + barSpacing) - barSpacing;
-        this.totalChartWidth = totalBarsWidth + leftPadding + rightPadding;
-        // Зміщення по X
-        const maxOffsetX = 0;
-        const minOffsetX = width - this.totalChartWidth;
-        if (!this.offsetXInitialized) {
-            if (this.totalChartWidth <= width) {
-                this.offsetX = (width - this.totalChartWidth) / 2;
-            }
-            else {
-                this.offsetX = minOffsetX;
-            }
-            this.offsetXInitialized = true;
-        }
-        // Максимальний об'єм для нормалізації висоти стовпчиків об'єму
-        const maxVolume = Math.max(...groupedBars.map(bar => bar.getTickVolume())) || 1; // Уникаємо ділення на нуль
-        this.drawPriceScale(maxPrice, priceRange, availableHeight, leftPadding, rightPadding, topPadding, width, priceScaleWidth);
-        // Відображення барів
-        groupedBars.forEach((bar, index) => {
-            const barX = this.offsetX + leftPadding + index * (barWidth + barSpacing);
-            this.drawVolumeBars(bar, maxVolume, volumeBarHeight, barWidth, height, dateLabelHeight, barX);
-            this.drawBars(bar, maxPrice, priceRange, topPadding, availableHeight, barWidth, barX);
-            // Перевірка видимості бару
-            this.updateVisibleBars(bar, durationInSeconds, leftPadding, barWidth, barX);
-        });
-        // Відображення часових діапазонів видимих барів та поточного інтервалу
-        const firstDate = new Date(this.firstVisibleBarTime * 1000);
-        const lastDate = new Date(this.lastVisibleBarTime * 1000);
-        const firstDateString = this.formatDateTime(firstDate);
-        const lastDateString = this.formatDateTime(lastDate);
-        this.ctx.fillStyle = 'black';
-        this.ctx.font = '12px Arial';
-        this.ctx.textAlign = 'left'; // Вирівнювання тексту по лівому краю
-        const timeRangeText = `Visible Range: ${firstDateString} - ${lastDateString} (Interval: ${currentInterval})`;
-        this.ctx.fillText(timeRangeText, this.padding, 20);
+    // Метод для відображення шкали дат і часу
+    drawDateScale(durationInMinutes, leftPadding, height, availableWidth) {
         // Визначення кількості міток та формат дати на основі рівня зума
         let labelCount;
         let includeDate = false;
@@ -383,6 +324,69 @@ export class Chart {
             // Відображення мітки часу
             this.ctx.fillText(dateString, positionX, labelY);
         }
+    }
+    // Метод для відображення графіку
+    render() {
+        const width = this.canvas.width;
+        const height = this.canvas.height;
+        // Очищення canvas
+        this.ctx.clearRect(0, 0, width, height);
+        const groupedBars = this.groupBarsByZoomLevel();
+        // Якщо вибраний бар не встановлений, за замовчуванням вибираємо останній видимий бар
+        if (!this.selectedBar && groupedBars.length > 0 && this.selectedVolumeBarIndex === null) {
+            this.selectedBar = groupedBars[groupedBars.length - 1];
+        }
+        // Визначення максимальної та мінімальної ціни
+        const maxPrice = Math.max(...groupedBars.map(bar => bar.getHigh()));
+        const minPrice = Math.min(...groupedBars.map(bar => bar.getLow()));
+        let priceRange = maxPrice - minPrice;
+        // Обробка випадку, коли priceRange дорівнює нулю
+        if (priceRange === 0) {
+            priceRange = maxPrice * 0.01; // Встановлюємо мінімальний діапазон
+        }
+        // Параметри відображення
+        const barSpacing = 5;
+        const barWidth = 10;
+        const topPadding = 30;
+        const volumeBarHeight = 30; // Фіксована висота для об'ємів
+        const dateLabelHeight = 20; // Висота для міток дат
+        const bottomPadding = volumeBarHeight + dateLabelHeight; // Загальний нижній відступ
+        const priceScaleWidth = 50; // Ширина шкали цін
+        const priceScalePadding = 5; // Внутрішній відступ для шкали цін
+        const leftPadding = this.padding;
+        const rightPadding = this.padding + priceScaleWidth;
+        const availableWidth = width - leftPadding - rightPadding;
+        const availableHeight = height - topPadding - bottomPadding;
+        // Визначення тривалості бару та поточного інтервалу
+        const { currentInterval, durationInSeconds, durationInMinutes } = this.getVisibleRangeAndInterval();
+        // Загальна ширина графіка
+        const totalBars = groupedBars.length;
+        const totalBarsWidth = totalBars * (barWidth + barSpacing) - barSpacing;
+        this.totalChartWidth = totalBarsWidth + leftPadding + rightPadding;
+        // Зміщення по X
+        const maxOffsetX = 0;
+        const minOffsetX = width - this.totalChartWidth;
+        if (!this.offsetXInitialized) {
+            if (this.totalChartWidth <= width) {
+                this.offsetX = (width - this.totalChartWidth) / 2;
+            }
+            else {
+                this.offsetX = minOffsetX;
+            }
+            this.offsetXInitialized = true;
+        }
+        // Максимальний об'єм для нормалізації висоти стовпчиків об'єму
+        const maxVolume = Math.max(...groupedBars.map(bar => bar.getTickVolume())) || 1; // Уникаємо ділення на нуль
+        this.drawPriceScale(maxPrice, priceRange, availableHeight, leftPadding, rightPadding, topPadding, width, priceScaleWidth);
+        // Відображення барів
+        groupedBars.forEach((bar, index) => {
+            const barX = this.offsetX + leftPadding + index * (barWidth + barSpacing);
+            this.drawVolumeBars(bar, maxVolume, volumeBarHeight, barWidth, height, dateLabelHeight, barX);
+            this.drawBars(bar, maxPrice, priceRange, topPadding, availableHeight, barWidth, barX);
+            // Перевірка видимості бару
+            this.updateVisibleBars(bar, durationInSeconds, leftPadding, barWidth, barX);
+        });
+        this.drawDateScale(durationInMinutes, leftPadding, height, availableWidth);
         // Повертаємо вирівнювання тексту за замовчуванням
         this.ctx.textAlign = 'left';
         // Відображення плашки над вибраним об'ємним блоком
