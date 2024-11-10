@@ -217,6 +217,40 @@ export class Chart {
             this.lastVisibleBarTime = bar.getTime() + durationInSeconds;
         }
     }
+    // Метод для відображення шкали цін
+    drawPriceScale(maxPrice, priceRange, availableHeight, leftPadding, rightPadding, topPadding, width, priceScaleWidth) {
+        const numberOfIntervals = 5; // Кількість інтервалів між ціновими рівнями
+        const priceStep = priceRange / numberOfIntervals;
+        const priceScalePadding = 5; // Внутрішній відступ для шкали цін
+        const pricePositions = [];
+        for (let i = 0; i <= numberOfIntervals; i++) {
+            const price = maxPrice - i * priceStep;
+            const y = topPadding + ((maxPrice - price) / priceRange) * availableHeight;
+            pricePositions.push({ price, y });
+        }
+        // Відображення горизонтальних ліній та шкали цін
+        this.ctx.fillStyle = 'black';
+        this.ctx.font = '10px Arial';
+        this.ctx.textAlign = 'left';
+        pricePositions.forEach(position => {
+            // Відображення горизонтальної лінії
+            this.ctx.strokeStyle = '#e0e0e0'; // Світло-сірий колір для ліній
+            this.ctx.beginPath();
+            this.ctx.moveTo(leftPadding, position.y);
+            this.ctx.lineTo(width - rightPadding, position.y);
+            this.ctx.stroke();
+            // Адаптивна кількість знаків після коми
+            let decimalPlaces = 2;
+            if (priceRange < 1) {
+                decimalPlaces = 4;
+            }
+            else if (priceRange < 0.1) {
+                decimalPlaces = 6;
+            }
+            const priceText = position.price.toFixed(decimalPlaces);
+            this.ctx.fillText(priceText, width - priceScaleWidth + priceScalePadding, position.y + 3);
+        });
+    }
     // Метод для відображення графіку
     render() {
         const width = this.canvas.width;
@@ -269,38 +303,7 @@ export class Chart {
         }
         // Максимальний об'єм для нормалізації висоти стовпчиків об'єму
         const maxVolume = Math.max(...groupedBars.map(bar => bar.getTickVolume())) || 1; // Уникаємо ділення на нуль
-        // Параметри шкали цін
-        const numberOfIntervals = 5; // Кількість інтервалів між ціновими рівнями
-        // Розрахунок кроків по ціні та позиції
-        const priceStep = priceRange / numberOfIntervals;
-        const pricePositions = [];
-        for (let i = 0; i <= numberOfIntervals; i++) {
-            const price = maxPrice - i * priceStep;
-            const y = topPadding + ((maxPrice - price) / priceRange) * availableHeight;
-            pricePositions.push({ price, y });
-        }
-        // Відображення горизонтальних ліній та шкали цін
-        this.ctx.fillStyle = 'black';
-        this.ctx.font = '10px Arial';
-        this.ctx.textAlign = 'left';
-        pricePositions.forEach(position => {
-            // Відображення горизонтальної лінії
-            this.ctx.strokeStyle = '#e0e0e0'; // Світло-сірий колір для ліній
-            this.ctx.beginPath();
-            this.ctx.moveTo(leftPadding, position.y);
-            this.ctx.lineTo(width - rightPadding, position.y);
-            this.ctx.stroke();
-            // Адаптивна кількість знаків після коми
-            let decimalPlaces = 2;
-            if (priceRange < 1) {
-                decimalPlaces = 4;
-            }
-            else if (priceRange < 0.1) {
-                decimalPlaces = 6;
-            }
-            const priceText = position.price.toFixed(decimalPlaces);
-            this.ctx.fillText(priceText, width - priceScaleWidth + priceScalePadding, position.y + 3);
-        });
+        this.drawPriceScale(maxPrice, priceRange, availableHeight, leftPadding, rightPadding, topPadding, width, priceScaleWidth);
         // Відображення барів
         groupedBars.forEach((bar, index) => {
             const barX = this.offsetX + leftPadding + index * (barWidth + barSpacing);
