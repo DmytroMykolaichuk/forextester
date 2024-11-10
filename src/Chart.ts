@@ -5,58 +5,52 @@ export class Chart {
     public canvas: HTMLCanvasElement;
     private ctx: CanvasRenderingContext2D;
     private dataChunks: DataChunk[]; // Массив чанков данных
-    private bars: Bar[]; // Обработанный массив баров
-    private offsetX: number;
-    private zoomLevel: number;
-    private padding: number;
-    private offsetXInitialized: boolean;
-    private totalChartWidth: number;
-    private selectedBar: BarData | null; // Выбранный бар для чёрной линии и плашки
-    private selectedVolumeBarIndex: number | null; // Индекс выбранного объёмного блока
+    private bars: Bar[] = []; // Обработанный массив баров
+    private offsetX: number = 0;
+    private zoomLevel: number = 6;
+    private padding: number = 30;
+    private offsetXInitialized: boolean = false;
+    private totalChartWidth: number = 0;
+    private selectedBar: Bar | null = null; // Выбранный бар для чёрной линии и плашки
+    private selectedVolumeBarIndex: number | null = null; // Индекс выбранного объёмного блока
     private canvasBoundingRect: DOMRect; // Для получения позиции холста на странице
 
     constructor(canvas: HTMLCanvasElement, dataChunks: DataChunk[]) {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d')!;
         this.dataChunks = dataChunks;
-        this.bars = [];
-        this.offsetX = 0;
-        this.zoomLevel = 6;
-        this.padding = 30;
-        this.offsetXInitialized = false;
-        this.totalChartWidth = 0;
-        this.selectedBar = null;
-        this.selectedVolumeBarIndex = null;
         this.canvasBoundingRect = this.canvas.getBoundingClientRect();
-
         // Обрабатываем чанки данных и формируем массив баров
         this.processDataChunks();
-
         // Добавляем обработчик клика по холсту
         this.canvas.addEventListener('click', this.onCanvasClick.bind(this));
     }
 
-    // Метод для обработки чанков данных и формирования массива баров
+    // Метод для обробки чанков даних и формування масива баров з обох чанков
     private processDataChunks() {
-        for (const chunk of this.dataChunks) {
+        const allBars: Bar[] = [];
+    
+        for (let i = 0; i < this.dataChunks.length; i++) {
+            const chunk = this.dataChunks[i];
             const chunkStart = chunk.ChunkStart;
-            const bars = chunk.Bars.map(barData => {
-                // Корректируем время бара, добавляя ChunkStart
+    
+            for (let j = 0; j < chunk.Bars.length; j++) {
+                const barData = chunk.Bars[j];
                 const correctedBarData: BarData = {
                     ...barData,
-                    Time: barData.Time + chunkStart
+                    Time: barData.Time + chunkStart,
                 };
-                return new Bar(correctedBarData);
-            });
-            this.bars = this.bars.concat(bars);
+                allBars.push(new Bar(correctedBarData));
+            }
         }
-
-        // Сортируем бары по времени
-        this.bars.sort((a, b) => a.getTime() - b.getTime());
+    
+        // Обновлюємо властивісь `bars` і відразу сортуємо // сортування на всякий випадако якщо дані будуть не в коректному порядку
+        this.bars = allBars.sort((a, b) => a.getTime() - b.getTime());
     }
 
+
     // Метод для группировки баров на основе уровня зума
-    private groupBarsByZoomLevel(): BarData[] {
+    private groupBarsByZoomLevel(): Bar[] {
         const zoomDurations = [
             24 * 60, // 1 день в минутах
             12 * 60, // 12 часов
@@ -68,22 +62,22 @@ export class Chart {
             5,       // 5 минут
             1        // 1 минута
         ];
+
         const durationInMinutes = zoomDurations[Math.max(0, Math.min(this.zoomLevel, zoomDurations.length - 1))];
-        const durationInSeconds = durationInMinutes * 60;
+        const durationInSeconds = durationInMinutes * 60;//час для групи барів в секундах
 
-        const groupedBars: BarData[] = [];
-        const bars = this.bars;
+        const groupedBars: Bar[] = [];
 
-        if (bars.length === 0) {
+        if (this.bars.length === 0) {
             return groupedBars;
         }
 
         let currentGroup: Bar[] = [];
-        let currentGroupStartTime = Math.floor(bars[0].getTime() / durationInSeconds) * durationInSeconds;
-
-        for (const bar of bars) {
+        let currentGroupStartTime = Math.floor(this.bars[0].getTime() / durationInSeconds) * durationInSeconds;
+        
+        for (const bar of this.bars) {
             const barTime = bar.getTime();
-
+            
             if (barTime < currentGroupStartTime + durationInSeconds) {
                 currentGroup.push(bar);
             } else {
@@ -94,17 +88,16 @@ export class Chart {
                 currentGroupStartTime = Math.floor(barTime / durationInSeconds) * durationInSeconds;
             }
         }
-
+        
         // Добавляем последнюю группу
         if (currentGroup.length > 0) {
             groupedBars.push(this.aggregateBars(currentGroup));
         }
-
         return groupedBars;
     }
 
-    // Метод для агрегации группы баров в один бар
-    private aggregateBars(bars: Bar[]): BarData {
+    // Метод для створення нового бару залежно від рівня zoom
+    private aggregateBars(bars: Bar[]): Bar {
         const open = bars[0].getOpen();
         const close = bars[bars.length - 1].getClose();
         const high = Math.max(...bars.map(bar => bar.getHigh()));
@@ -112,14 +105,14 @@ export class Chart {
         const tickVolume = bars.reduce((sum, bar) => sum + bar.getTickVolume(), 0);
         const time = bars[0].getTime();
 
-        return {
+        return new Bar({
             Time: time,
             Open: open,
             High: high,
             Low: low,
             Close: close,
             TickVolume: tickVolume
-        };
+        });
     }
 
     // Метод для отображения графика
@@ -138,8 +131,8 @@ export class Chart {
         }
 
         // Вычисление максимальной и минимальной цены
-        const maxPrice = Math.max(...groupedBars.map(bar => bar.High));
-        const minPrice = Math.min(...groupedBars.map(bar => bar.Low));
+        const maxPrice = Math.max(...groupedBars.map(bar => bar.getHigh()));
+        const minPrice = Math.min(...groupedBars.map(bar => bar.getLow()));
         let priceRange = maxPrice - minPrice;
 
         // Обработка случая, когда priceRange равен нулю
@@ -174,15 +167,15 @@ export class Chart {
             1        // 1 минута
         ];
         const intervals = [
-'1 day',
-'12 hours',
-'6 hours',
-'3 hours',
-'1 hour',
-'30 minutes',
-'15 minutes',
-'5 minutes',
-'1 minute'
+            '1 day',
+            '12 hours',
+            '6 hours',
+            '3 hours',
+            '1 hour',
+            '30 minutes',
+            '15 minutes',
+            '5 minutes',
+            '1 minute'
         ];
         const durationInMinutes = zoomDurations[Math.max(0, Math.min(this.zoomLevel, zoomDurations.length - 1))];
         const durationInSeconds = durationInMinutes * 60;
@@ -207,14 +200,14 @@ export class Chart {
         }
 
         // Максимальный объём для нормализации высоты столбиков объёма
-        const maxVolume = Math.max(...groupedBars.map(bar => bar.TickVolume)) || 1; // Избегаем деления на ноль
+        const maxVolume = Math.max(...groupedBars.map(bar => bar.getTickVolume())) || 1; // Избегаем деления на ноль
 
         // Инициализируем времена первого и последнего видимых баров
         let firstVisibleBarTime: number = 0;
         let lastVisibleBarTime: number = 0;
-
+        
         // Массив для хранения видимых баров
-        const visibleBars: BarData[] = [];
+        const visibleBars: Bar[] = [];
 
         // Параметры шкалы цен
         const numberOfIntervals = 5; // Количество интервалов между ценовыми уровнями
@@ -254,33 +247,12 @@ export class Chart {
             const priceText = position.price.toFixed(decimalPlaces);
             this.ctx.fillText(priceText, width - priceScaleWidth + priceScalePadding, position.y + 3);
         });
-
+        
         // Отрисовка баров
         groupedBars.forEach((bar, index) => {
             const barX = this.offsetX + leftPadding + index * (barWidth + barSpacing);
 
-            // Координаты Y для бара
-            const openY = topPadding + ((maxPrice - bar.Open) / priceRange) * availableHeight;
-            const closeY = topPadding + ((maxPrice - bar.Close) / priceRange) * availableHeight;
-            const highY = topPadding + ((maxPrice - bar.High) / priceRange) * availableHeight;
-            const lowY = topPadding + ((maxPrice - bar.Low) / priceRange) * availableHeight;
-
-            // Определяем верхнюю и нижнюю точки тела бара
-            let barTopY = Math.min(openY, closeY);
-            let barBottomY = Math.max(openY, closeY);
-
-            // Вычисляем высоту тела бара
-            let barHeight = barBottomY - barTopY;
-
-            // Устанавливаем минимальную высоту бара
-            const minBarHeight = 1; // Минимальная высота бара в пикселях
-            if (barHeight < minBarHeight) {
-                barHeight = minBarHeight;
-                // Центрируем бар по вертикали между openY и closeY
-                const barCenterY = (openY + closeY) / 2;
-                barTopY = barCenterY - barHeight / 2;
-                barBottomY = barCenterY + barHeight / 2;
-            }
+            const {highY, lowY, barTopY, barHeight} = bar.calculateBarDimensions(maxPrice, priceRange, topPadding, availableHeight)
 
             // Проверка видимости бара
             if (barX + barWidth >= leftPadding && barX - barWidth <= width - rightPadding) {
@@ -289,18 +261,12 @@ export class Chart {
 
                 // Устанавливаем времена первого и последнего видимых баров
                 if (visibleBars.length === 1) {
-                    firstVisibleBarTime = bar.Time;
+                    firstVisibleBarTime = bar.getTime();
                 }
-                lastVisibleBarTime = bar.Time + durationInSeconds;
+                lastVisibleBarTime = bar.getTime() + durationInSeconds;
 
                 // Установка цвета бара
-                if (bar.Close > bar.Open) {
-                    this.ctx.fillStyle = 'green';
-                } else if (bar.Close < bar.Open) {
-                    this.ctx.fillStyle = 'red';
-                } else {
-                    this.ctx.fillStyle = 'gray';
-                }
+                    this.ctx.fillStyle = bar.getColor();
 
                 // Отрисовка High и Low (тени)
                 this.ctx.strokeStyle = 'black';
@@ -313,7 +279,7 @@ export class Chart {
                 this.ctx.fillRect(barX - barWidth / 2, barTopY, barWidth, barHeight);
 
                 // Отрисовка объёма под каждой свечой (Tick Volume)
-                let volumeHeight = (bar.TickVolume / maxVolume) * volumeBarHeight;
+                let volumeHeight = (bar.getTickVolume() / maxVolume) * volumeBarHeight;
                 const minVolumeHeight = 1; // Минимальная высота объёма
                 if (volumeHeight < minVolumeHeight) {
                     volumeHeight = minVolumeHeight;
@@ -422,14 +388,14 @@ export class Chart {
             const barX = this.offsetX + leftPadding + index * (barWidth + barSpacing);
 
             // Позиция Y для объёмного блока
-            const volumeHeight = (bar.TickVolume / maxVolume) * volumeBarHeight;
+            const volumeHeight = (bar.getTickVolume() / maxVolume) * volumeBarHeight;
             const minVolumeHeight = 1;
             const actualVolumeHeight = Math.max(volumeHeight, minVolumeHeight);
 
             const volumeY = height - dateLabelHeight - actualVolumeHeight;
 
             // Подготовка данных для плашки
-            const volumeText = `Trade Volume: ${bar.TickVolume}`;
+            const volumeText = `Trade Volume: ${bar.getTickVolume()}`;
 
             // Устанавливаем шрифт и вычисляем размеры плашки
             this.ctx.font = '10px Arial';
@@ -465,13 +431,13 @@ export class Chart {
         // Отрисовка линии и плашки над выбранным баром
         if (this.selectedBar) {
             // Определяем индекс выбранного бара
-            const selectedBarIndex = groupedBars.findIndex(bar => bar.Time === this.selectedBar!.Time);
+            const selectedBarIndex = groupedBars.findIndex(bar => bar.getTime() === this.selectedBar!.getTime());
 
             // Координата X выбранного бара
             const barX = this.offsetX + leftPadding + selectedBarIndex * (barWidth + barSpacing);
 
             // Цена верхней границы тела бара (максимум между Open и Close)
-            const barTopPrice = Math.max(this.selectedBar.Open, this.selectedBar.Close);
+            const barTopPrice = Math.max(this.selectedBar.getOpen(), this.selectedBar.getClose());
 
             // Координата Y для линии
             const lineY = topPadding + ((maxPrice - barTopPrice) / priceRange) * availableHeight;
@@ -486,7 +452,7 @@ export class Chart {
 
             // Подготовка данных для плашки
             const priceText = `${barTopPrice}$`; // Отображаем цену без округления и добавляем символ `$`
-            const date = new Date((this.selectedBar.Time + durationInSeconds) * 1000);
+            const date = new Date((this.selectedBar.getTime() + durationInSeconds) * 1000);
             const dateText = this.formatDate(date);
             const timeText = this.formatTime(date);
 
@@ -551,7 +517,7 @@ export class Chart {
 
         // Устанавливаем выбранный бар на последний бар после изменения зума
         const groupedBars = this.groupBarsByZoomLevel();
-        if (groupedBars.length > 0) {
+        if (groupedBars.length > 1) {
             this.selectedBar = groupedBars[groupedBars.length - 1];
         } else {
             this.selectedBar = null;
@@ -606,7 +572,7 @@ export class Chart {
     
 
     // Метод для определения бара под курсором
-    private getBarAtPosition(x: number, y: number): BarData | null {
+    private getBarAtPosition(x: number, y: number): Bar | null {
         const width = this.canvas.width;
         const height = this.canvas.height;
 
@@ -624,8 +590,8 @@ export class Chart {
 
         // Вычисление maxPrice и minPrice так же, как в render()
         const groupedBars = this.groupBarsByZoomLevel();
-        const maxPrice = Math.max(...groupedBars.map(bar => bar.High));
-        const minPrice = Math.min(...groupedBars.map(bar => bar.Low));
+        const maxPrice = Math.max(...groupedBars.map(bar => bar.getHigh()));
+        const minPrice = Math.min(...groupedBars.map(bar => bar.getLow()));
         let priceRange = maxPrice - minPrice;
         if (priceRange === 0) {
             priceRange = maxPrice * 0.01;
@@ -638,8 +604,8 @@ export class Chart {
 
             if (x >= barX - barWidth / 2 && x <= barX + barWidth / 2) {
                 // Координаты Y для бара
-                const highY = topPadding + ((maxPrice - bar.High) / priceRange) * availableHeight;
-                const lowY = topPadding + ((maxPrice - bar.Low) / priceRange) * availableHeight;
+                const highY = topPadding + ((maxPrice - bar.getHigh()) / priceRange) * availableHeight;
+                const lowY = topPadding + ((maxPrice - bar.getLow()) / priceRange) * availableHeight;
 
                 if (y >= highY && y <= lowY) {
                     return bar;
