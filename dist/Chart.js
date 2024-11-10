@@ -9,7 +9,7 @@ export class Chart {
         this.offsetXInitialized = false;
         this.totalChartWidth = 0;
         this.selectedBar = null; // Вибраний бар для чорної лінії та плашки
-        this.selectedVolumeBarIndex = null; // Індекс вибраного об'ємного блоку
+        this.selectedVolumeBarIndex = null; // Індекс вибраного блоку об'єму торгівлі
         this.firstVisibleBarTime = 0;
         this.lastVisibleBarTime = 0;
         this.canvas = canvas;
@@ -175,6 +175,7 @@ export class Chart {
             });
         }
     }
+    // Метод для відображення блоків об'єму торгвілі під свічками
     drawVolumeBars(bar, maxVolume, volumeBarHeight, barWidth, height, dateLabelHeight, barX) {
         // Відображення об'єму під кожною свічкою (Tick Volume)
         let volumeHeight = (bar.getTickVolume() / maxVolume) * volumeBarHeight;
@@ -187,6 +188,20 @@ export class Chart {
         // Відображення об'єму
         this.ctx.fillStyle = 'blue';
         this.ctx.fillRect(barX - barWidth / 2, volumeY, barWidth, volumeHeight);
+    }
+    // Метод для відображення барів (червоних і зелених)
+    drawBars(bar, maxPrice, priceRange, topPadding, availableHeight, barWidth, barX) {
+        const { highY, lowY, barTopY, barHeight } = bar.calculateBarDimensions(maxPrice, priceRange, topPadding, availableHeight);
+        // Встановлення кольору бару
+        this.ctx.fillStyle = bar.getColor();
+        // Відображення High та Low (тіні)
+        this.ctx.strokeStyle = 'black';
+        this.ctx.beginPath();
+        this.ctx.moveTo(barX, highY);
+        this.ctx.lineTo(barX, lowY);
+        this.ctx.stroke();
+        // Відображення тіла бару
+        this.ctx.fillRect(barX - barWidth / 2, barTopY, barWidth, barHeight);
     }
     // Метод для відображення графіку
     render() {
@@ -279,7 +294,7 @@ export class Chart {
         groupedBars.forEach((bar, index) => {
             const barX = this.offsetX + leftPadding + index * (barWidth + barSpacing);
             this.drawVolumeBars(bar, maxVolume, volumeBarHeight, barWidth, height, dateLabelHeight, barX);
-            const { highY, lowY, barTopY, barHeight } = bar.calculateBarDimensions(maxPrice, priceRange, topPadding, availableHeight);
+            this.drawBars(bar, maxPrice, priceRange, topPadding, availableHeight, barWidth, barX);
             // Перевірка видимості бару
             if (barX + barWidth >= leftPadding && barX - barWidth <= width - rightPadding) {
                 // Додаємо бар в масив видимих барів
@@ -289,16 +304,6 @@ export class Chart {
                     this.firstVisibleBarTime = bar.getTime();
                 }
                 this.lastVisibleBarTime = bar.getTime() + durationInSeconds;
-                // Встановлення кольору бару
-                this.ctx.fillStyle = bar.getColor();
-                // Відображення High та Low (тіні)
-                this.ctx.strokeStyle = 'black';
-                this.ctx.beginPath();
-                this.ctx.moveTo(barX, highY);
-                this.ctx.lineTo(barX, lowY);
-                this.ctx.stroke();
-                // Відображення тіла бару
-                this.ctx.fillRect(barX - barWidth / 2, barTopY, barWidth, barHeight);
             }
         });
         // Якщо немає видимих барів, виходимо з методу
