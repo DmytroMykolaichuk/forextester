@@ -213,20 +213,6 @@ export class Chart {
         // Відображення тіла бару
         this.ctx.fillRect(barX - barWidth / 2, barTopY, barWidth, barHeight);
     }
-    // Метод для відображення видимого діапазону барів
-    updateVisibleBars(bar, durationInSeconds, leftPadding, barWidth, barX) {
-        // Масив для зберігання видимих барів
-        const visibleBars = [];
-        // Перевірка видимості бару
-        if (barX + barWidth >= leftPadding && barX - barWidth <= this.canvas.width - leftPadding) {
-            visibleBars.push(bar);
-            // Встановлюємо часи першого та останнього видимих барів
-            if (visibleBars.length === 1) {
-                this.firstVisibleBarTime = bar.getTime();
-            }
-            this.lastVisibleBarTime = bar.getTime() + durationInSeconds;
-        }
-    }
     // Метод для відображення шкали цін
     drawPriceScale(maxPrice, priceRange, availableHeight, leftPadding, rightPadding, topPadding, width, priceScaleWidth) {
         const numberOfIntervals = 5; // Кількість інтервалів між ціновими рівнями
@@ -377,13 +363,27 @@ export class Chart {
         const maxVolume = Math.max(...groupedBars.map(bar => bar.getTickVolume())) || 1; // Уникаємо ділення на нуль
         this.drawPriceScale(maxPrice, priceRange, availableHeight, leftPadding, rightPadding, topPadding, width, priceScaleWidth);
         // Відображення барів
+        const visibleBars = [];
         groupedBars.forEach((bar, index) => {
             const barX = this.offsetX + leftPadding + index * (barWidth + barSpacing);
-            this.drawVolumeBars(bar, maxVolume, volumeBarHeight, barWidth, height, dateLabelHeight, barX);
-            this.drawBars(bar, maxPrice, priceRange, topPadding, availableHeight, barWidth, barX);
             // Перевірка видимості бару
-            this.updateVisibleBars(bar, durationInSeconds, leftPadding, barWidth, barX);
+            if (barX + barWidth >= leftPadding && barX - barWidth <= width - rightPadding) {
+                // Додаємо бар в масив видимих барів
+                visibleBars.push(bar);
+                // Встановлюємо часи першого та останнього видимих барів
+                if (visibleBars.length === 1) {
+                    this.firstVisibleBarTime = bar.getTime();
+                }
+                this.lastVisibleBarTime = bar.getTime() + durationInSeconds;
+                //Рендер барів обєма торгівлі
+                this.drawVolumeBars(bar, maxVolume, volumeBarHeight, barWidth, height, dateLabelHeight, barX);
+                //Рендер основних барів
+                this.drawBars(bar, maxPrice, priceRange, topPadding, availableHeight, barWidth, barX);
+            }
         });
+        // Якщо немає видимих барів, виходимо з методу
+        if (visibleBars.length === 0)
+            return;
         this.drawDateScale(durationInMinutes, leftPadding, height, availableWidth);
         // Відображення плашки над вибраним об'ємним блоком
         if (this.selectedVolumeBarIndex !== null) {
