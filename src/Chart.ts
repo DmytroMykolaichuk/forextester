@@ -14,6 +14,8 @@ export class Chart {
     private selectedBar: Bar | null = null; // Вибраний бар для чорної лінії та плашки
     private selectedVolumeBarIndex: number | null = null; // Індекс вибраного об'ємного блоку
     private canvasBoundingRect: DOMRect; // Для отримання позиції полотна на сторінці
+    private firstVisibleBarTime: number = 0;
+    private lastVisibleBarTime: number = 0;
 
     constructor(canvas: HTMLCanvasElement, dataChunks: DataChunk[]) {
         this.canvas = canvas;
@@ -114,6 +116,37 @@ export class Chart {
         });
     }
 
+      // Метод для визначення видимого діапазону та інтервалу
+  private getVisibleRangeAndInterval(): { currentInterval: string, durationInSeconds: number,durationInMinutes:number } {
+    const zoomDurations = [
+        24 * 60, // 1 день в хвилинах
+        12 * 60, // 12 годин
+        6 * 60,  // 6 годин
+        3 * 60,  // 3 години
+        60,      // 1 година
+        30,      // 30 хвилин
+        15,      // 15 хвилин
+        5,       // 5 хвилин
+        1        // 1 хвилина
+    ];
+    const intervals = [
+        '1 day',
+        '12 hours',
+        '6 hours',
+        '3 hours',
+        '1 hour',
+        '30 minutes',
+        '15 minutes',
+        '5 minutes',
+        '1 minute'
+    ];
+    const durationInMinutes = zoomDurations[Math.max(0, Math.min(this.zoomLevel, zoomDurations.length - 1))];
+    const durationInSeconds = durationInMinutes * 60;
+    const currentInterval = intervals[Math.max(0, Math.min(this.zoomLevel, intervals.length - 1))];
+
+    return {currentInterval, durationInSeconds,durationInMinutes };
+}
+
     // Метод для відображення графіку
     public render() {
         const width = this.canvas.width;
@@ -154,31 +187,7 @@ export class Chart {
         const availableHeight = height - topPadding - bottomPadding;
 
         // Визначення тривалості бару та поточного інтервалу
-        const zoomDurations = [
-            24 * 60, // 1 день в хвилинах
-            12 * 60, // 12 годин
-            6 * 60,  // 6 годин
-            3 * 60,  // 3 години
-            60,      // 1 година
-            30,      // 30 хвилин
-            15,      // 15 хвилин
-            5,       // 5 хвилин
-            1        // 1 хвилина
-        ];
-        const intervals = [
-            '1 day',
-            '12 hours',
-            '6 hours',
-            '3 hours',
-            '1 hour',
-            '30 minutes',
-            '15 minutes',
-            '5 minutes',
-            '1 minute'
-        ];
-        const durationInMinutes = zoomDurations[Math.max(0, Math.min(this.zoomLevel, zoomDurations.length - 1))];
-        const durationInSeconds = durationInMinutes * 60;
-        const currentInterval = intervals[Math.max(0, Math.min(this.zoomLevel, intervals.length - 1))];
+        const {  currentInterval, durationInSeconds,durationInMinutes }=this.getVisibleRangeAndInterval()
 
         // Загальна ширина графіка
         const totalBars = groupedBars.length;
@@ -201,9 +210,6 @@ export class Chart {
         // Максимальний об'єм для нормалізації висоти стовпчиків об'єму
         const maxVolume = Math.max(...groupedBars.map(bar => bar.getTickVolume())) || 1; // Уникаємо ділення на нуль
 
-        // Ініціалізація часів першого та останнього видимих барів
-        let firstVisibleBarTime: number = 0;
-        let lastVisibleBarTime: number = 0;
         
         // Масив для зберігання видимих барів
         const visibleBars: Bar[] = [];
@@ -260,9 +266,9 @@ export class Chart {
 
                 // Встановлюємо часи першого та останнього видимих барів
                 if (visibleBars.length === 1) {
-                    firstVisibleBarTime = bar.getTime();
+                    this.firstVisibleBarTime = bar.getTime();
                 }
-                lastVisibleBarTime = bar.getTime() + durationInSeconds;
+                this.lastVisibleBarTime = bar.getTime() + durationInSeconds;
 
                 // Встановлення кольору бару
                 this.ctx.fillStyle = bar.getColor();
@@ -299,8 +305,8 @@ export class Chart {
         }
 
         // Відображення часових діапазонів видимих барів та поточного інтервалу
-        const firstDate = new Date(firstVisibleBarTime * 1000);
-        const lastDate = new Date(lastVisibleBarTime * 1000);
+        const firstDate = new Date(this.firstVisibleBarTime * 1000);
+        const lastDate = new Date(this.lastVisibleBarTime * 1000);
 
         const firstDateString = this.formatDateTime(firstDate);
         const lastDateString = this.formatDateTime(lastDate);
@@ -330,8 +336,8 @@ export class Chart {
         } else {
             // 1 день
             // Визначаємо кількість днів між першим та останнім видимим баром
-            const startDate = new Date(firstVisibleBarTime * 1000);
-            const endDate = new Date(lastVisibleBarTime * 1000);
+            const startDate = new Date(this.firstVisibleBarTime * 1000);
+            const endDate = new Date(this.lastVisibleBarTime * 1000);
             const dayDifference = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
 
             labelCount = Math.min(dayDifference, 4);
@@ -350,7 +356,7 @@ export class Chart {
 
         for (let i = 0; i < labelCount; i++) {
             let positionX = leftPadding + (i * availableWidth) / (labelCount - 1);
-            const time = firstVisibleBarTime + (i * (lastVisibleBarTime - firstVisibleBarTime)) / (labelCount - 1);
+            const time = this.firstVisibleBarTime + (i * (this.lastVisibleBarTime - this.firstVisibleBarTime)) / (labelCount - 1);
 
             const date = new Date(time * 1000);
             let dateString: string;
@@ -487,6 +493,34 @@ export class Chart {
             });
         }
     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     // Метод для форматування дати
     private formatDate(date: Date): string {
