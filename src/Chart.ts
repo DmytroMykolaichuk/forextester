@@ -117,7 +117,7 @@ export class Chart {
     }
 
       // Метод для визначення видимого діапазону та інтервалу
-  private getVisibleRangeAndInterval(): { currentInterval: string, durationInSeconds: number,durationInMinutes:number } {
+    private getVisibleRangeAndInterval(): { currentInterval: string, durationInSeconds: number,durationInMinutes:number } {
     const zoomDurations = [
         24 * 60, // 1 день в хвилинах
         12 * 60, // 12 годин
@@ -145,7 +145,69 @@ export class Chart {
     const currentInterval = intervals[Math.max(0, Math.min(this.zoomLevel, intervals.length - 1))];
 
     return {currentInterval, durationInSeconds,durationInMinutes };
-}
+    }
+    
+         // Метод для відображення чорної лінії та плашки над вибраним баром
+    private drawSelectedBarHighlight(groupedBars: Bar[], maxPrice: number, priceRange: number, topPadding: number, availableHeight: number, width: number, durationInSeconds: number, bottomPadding: number) {
+            if (this.selectedBar) {
+                // Визначення індексу вибраного бару
+                const selectedBarIndex = groupedBars.findIndex(bar => bar.getTime() === this.selectedBar!.getTime());
+    
+                // Координата X вибраного бару
+                const barX = this.offsetX + this.padding + selectedBarIndex * (10 + 5); // barWidth + barSpacing
+    
+                // Ціна верхньої границі тіла бару (максимум між Open та Close)
+                const barTopPrice = Math.max(this.selectedBar.getOpen(), this.selectedBar.getClose());
+    
+                // Координата Y для лінії
+                const lineY = topPadding + ((maxPrice - barTopPrice) / priceRange) * availableHeight;
+    
+                // Відображення тонкої чорної лінії через весь графік, включаючи відступи
+                this.ctx.strokeStyle = 'black';
+                this.ctx.lineWidth = 1;
+                this.ctx.beginPath();
+                this.ctx.moveTo(0, lineY);
+                this.ctx.lineTo(width, lineY);
+                this.ctx.stroke();
+    
+                // Підготовка даних для плашки
+                const priceText = `${barTopPrice}$`; // Відображення ціни без округлення та додаємо символ `$`
+                const date = new Date((this.selectedBar.getTime() + durationInSeconds) * 1000);
+                const dateText = this.formatDate(date);
+                const timeText = this.formatTime(date);
+    
+                const labelLines = [priceText, dateText, timeText];
+    
+                // Встановлюємо шрифт і розраховуємо розміри плашки
+                this.ctx.font = '10px Arial';
+                const labelWidth = Math.max(...labelLines.map(text => this.ctx.measureText(text).width)) + 10;
+                const labelHeight = labelLines.length * 12 + 10; // Висота плашки з урахуванням кількості рядків
+    
+                // Позиціювання плашки щільно до правого краю полотна
+                const labelX = width - labelWidth; // Позиція на самому краю полотна
+                let labelY = lineY - labelHeight / 2;
+    
+                // Переконуємось, що плашка не виходить за межі графіка по вертикалі
+                if (labelY < topPadding) {
+                    labelY = topPadding;
+                } else if (labelY + labelHeight > this.canvas.height - bottomPadding) {
+                    labelY = this.canvas.height - bottomPadding - labelHeight;
+                }
+    
+                // Відображення плашки із заокругленими краями
+                this.drawRoundedRect(labelX, labelY, labelWidth, labelHeight, 5, 'black');
+    
+                // Відображення тексту на плашці
+                this.ctx.fillStyle = 'white';
+                this.ctx.textAlign = 'left'; // Вирівнювання тексту по лівому краю
+                const textX = labelX + 5;
+                const textY = labelY + 15;
+    
+                labelLines.forEach((text, index) => {
+                    this.ctx.fillText(text, textX, textY + index * 12);
+                });
+            }
+        }
 
     // Метод для відображення графіку
     public render() {
@@ -434,65 +496,10 @@ export class Chart {
         }
 
         // Відображення лінії та плашки над вибраним баром
-        if (this.selectedBar) {
-            // Визначення індексу вибраного бару
-            const selectedBarIndex = groupedBars.findIndex(bar => bar.getTime() === this.selectedBar!.getTime());
-
-            // Координата X вибраного бару
-            const barX = this.offsetX + leftPadding + selectedBarIndex * (barWidth + barSpacing);
-
-            // Ціна верхньої границі тіла бару (максимум між Open та Close)
-            const barTopPrice = Math.max(this.selectedBar.getOpen(), this.selectedBar.getClose());
-
-            // Координата Y для лінії
-            const lineY = topPadding + ((maxPrice - barTopPrice) / priceRange) * availableHeight;
-
-            // Відображення тонкої чорної лінії через весь графік, включаючи відступи
-            this.ctx.strokeStyle = 'black';
-            this.ctx.lineWidth = 1;
-            this.ctx.beginPath();
-            this.ctx.moveTo(0, lineY);
-            this.ctx.lineTo(width, lineY);
-            this.ctx.stroke();
-
-            // Підготовка даних для плашки
-            const priceText = `${barTopPrice}$`; // Відображення ціни без округлення та додаємо символ `$`
-            const date = new Date((this.selectedBar.getTime() + durationInSeconds) * 1000);
-            const dateText = this.formatDate(date);
-            const timeText = this.formatTime(date);
-
-            const labelLines = [priceText, dateText, timeText];
-
-            // Встановлюємо шрифт і розраховуємо розміри плашки
-            this.ctx.font = '10px Arial';
-            const labelWidth = Math.max(...labelLines.map(text => this.ctx.measureText(text).width)) + 10;
-            const labelHeight = labelLines.length * 12 + 10; // Висота плашки з урахуванням кількості рядків
-
-            // Позиціювання плашки щільно до правого краю полотна
-            const labelX = width - labelWidth; // Позиція на самому краю полотна
-            let labelY = lineY - labelHeight / 2;
-
-            // Переконуємось, що плашка не виходить за межі графіка по вертикалі
-            if (labelY < topPadding) {
-                labelY = topPadding;
-            } else if (labelY + labelHeight > height - bottomPadding) {
-                labelY = height - bottomPadding - labelHeight;
-            }
-
-            // Відображення плашки із заокругленими краями
-            this.drawRoundedRect(labelX, labelY, labelWidth, labelHeight, 5, 'black');
-
-            // Відображення тексту на плашці
-            this.ctx.fillStyle = 'white';
-            this.ctx.textAlign = 'left'; // Вирівнювання тексту по лівому краю
-            const textX = labelX + 5;
-            const textY = labelY + 15;
-
-            labelLines.forEach((text, index) => {
-                this.ctx.fillText(text, textX, textY + index * 12);
-            });
-        }
+        this.drawSelectedBarHighlight(groupedBars, maxPrice, priceRange, topPadding, availableHeight, width, durationInSeconds, bottomPadding)
     }
+
+
 
 
 
