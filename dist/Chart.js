@@ -441,6 +441,8 @@ export class Chart {
         this.drawVolumeBarLabel(groupedBars, leftPadding, width, barWidth, barSpacing, volumeBarHeight, dateLabelHeight, topPadding, this.maxVolume, height);
         // Рисуем линию и плашку над выбранным баром
         this.drawSelectedBarHighlight(groupedBars, maxPrice, priceRange, topPadding, availableHeight, width, this.durationInSeconds, bottomPadding);
+        // Добавить отображение видимого диапазона
+        this.getVisibleRangeAndInterval(); // Добавление этой строки
     }
     // Метод для масштабування графіка
     zoom(zoomIn) {

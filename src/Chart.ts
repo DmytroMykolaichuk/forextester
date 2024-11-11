@@ -525,7 +525,11 @@ private drawVolumeBarLabel(groupedBars: Bar[], leftPadding: number, width: numbe
     
         // Рисуем линию и плашку над выбранным баром
         this.drawSelectedBarHighlight(groupedBars, maxPrice, priceRange, topPadding, availableHeight, width, this.durationInSeconds, bottomPadding);
+    
+        // Добавить отображение видимого диапазона
+        this.getVisibleRangeAndInterval(); // Добавление этой строки
     }
+    
        
     
     
