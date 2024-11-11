@@ -35,7 +35,7 @@ export class Chart {
         this.canvasBoundingRect = this.canvas.getBoundingClientRect();
         // Обробка чанків даних і формування масиву барів
         this.processDataChunks();
-        // Додаємо обробник кліка по полотну
+    
         this.canvas.addEventListener('click', this.onCanvasClick.bind(this));
     }
 
@@ -59,6 +59,9 @@ export class Chart {
 
         // Оновлюємо властивість `bars` і одразу сортуємо для гарантії правильного порядку
         this.bars = allBars.sort((a, b) => a.getTime() - b.getTime());
+
+        // После обработки данных инициализируем видимый диапазон и отрисовываем график
+        this.initializeVisibleRange();
     }
 
     // Метод для групування барів на основі рівня зума
@@ -118,11 +121,34 @@ export class Chart {
         const leftPadding = this.padding;
         const rightPadding = this.padding + 50; // 50 - ширина шкалы цен
     
+        // Группирование баров в зависимости от уровня зума
+        const groupedBars = this.groupBarsByZoomLevel();
+        
+        // Общая ширина всех баров с учетом отступов
+        const totalBars = groupedBars.length;
+        const totalBarsWidth = totalBars * (barWidth + barSpacing) - barSpacing;
+        this.totalChartWidth = totalBarsWidth + leftPadding + rightPadding;
+    
+        // Определяем минимальный offset по X
+        const minOffsetX = width - this.totalChartWidth;
+    
+        // Инициализация offsetX, если она еще не была выполнена
+        if (!this.offsetXInitialized) {
+            if (this.totalChartWidth <= width) {
+                // Если вся ширина графика помещается, центрируем
+                this.offsetX = (width - this.totalChartWidth) / 2;
+            } else {
+                // Если ширина графика больше ширины canvas, смещаем до minOffsetX
+                this.offsetX = minOffsetX;
+            }
+            this.offsetXInitialized = true;
+        }
+    
         // Определяем видимые бары по положению и ширине
-        this.groupBarsByZoomLevel().forEach((bar, index) => {
+        groupedBars.forEach((bar, index) => {
             const barX = this.offsetX + leftPadding + index * (barWidth + barSpacing);
     
-            // Если бар в пределах видимой области, добавляем его в массив видимых баров
+            // Если бар находится в пределах видимой области, добавляем его в массив видимых баров
             if (barX + barWidth >= leftPadding && barX - barWidth <= width - rightPadding) {
                 visibleBars.push(bar);
             }
@@ -132,6 +158,10 @@ export class Chart {
         if (visibleBars.length > 0) {
             this.firstVisibleBarTime = visibleBars[0].getTime();
             this.lastVisibleBarTime = visibleBars[visibleBars.length - 1].getTime();
+        } else {
+            // Если видимых баров нет, обнуляем время видимых баров
+            this.firstVisibleBarTime = 0;
+            this.lastVisibleBarTime = 0;
         }
     }
 
