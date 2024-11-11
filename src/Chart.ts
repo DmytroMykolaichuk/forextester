@@ -56,7 +56,12 @@ export class Chart {
                 allBars.push(new Bar(correctedBarData));
             }
         }
-    
+
+        //Потім зробити нормально//ТИМЧАСОВО  ТЕСТ
+        this.firstVisibleBarTime = this.dataChunks[0].ChunkStart;
+        const period = this.dataChunks[1].Bars[1].Time
+        this.lastVisibleBarTime = this.dataChunks[1].ChunkStart + (period * this.dataChunks[1].Bars.length);
+
         // Оновлюємо властивість `bars` і одразу сортуємо для гарантії правильного порядку
         this.bars = allBars.sort((a, b) => a.getTime() - b.getTime());
     }
