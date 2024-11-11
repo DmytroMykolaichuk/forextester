@@ -12,6 +12,17 @@ export class Chart {
         this.selectedVolumeBarIndex = null; // Індекс вибраного блоку об'єму торгівлі
         this.firstVisibleBarTime = 0;
         this.lastVisibleBarTime = 0;
+        this.zoomDurations = [
+            24 * 60, // 1 день в хвилинах
+            12 * 60, // 12 годин
+            6 * 60, // 6 годин
+            3 * 60, // 3 години
+            60, // 1 година
+            30, // 30 хвилин
+            15, // 15 хвилин
+            5, // 5 хвилин
+            1 // 1 хвилина
+        ];
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
         this.dataChunks = dataChunks;
@@ -41,18 +52,7 @@ export class Chart {
     }
     // Метод для групування барів на основі рівня зума
     groupBarsByZoomLevel() {
-        const zoomDurations = [
-            24 * 60, // 1 день в хвилинах
-            12 * 60, // 12 годин
-            6 * 60, // 6 годин
-            3 * 60, // 3 години
-            60, // 1 година
-            30, // 30 хвилин
-            15, // 15 хвилин
-            5, // 5 хвилин
-            1 // 1 хвилина
-        ];
-        const durationInMinutes = zoomDurations[Math.max(0, Math.min(this.zoomLevel, zoomDurations.length - 1))];
+        const durationInMinutes = this.zoomDurations[Math.max(0, Math.min(this.zoomLevel, this.zoomDurations.length - 1))];
         const durationInSeconds = durationInMinutes * 60; // Час для групи барів в секундах
         const groupedBars = [];
         if (this.bars.length === 0) {
@@ -87,55 +87,9 @@ export class Chart {
         const low = Math.min(...bars.map(bar => bar.getLow()));
         const tickVolume = bars.reduce((sum, bar) => sum + bar.getTickVolume(), 0);
         const time = bars[0].getTime();
-        return new Bar({
-            Time: time,
-            Open: open,
-            High: high,
-            Low: low,
-            Close: close,
-            TickVolume: tickVolume
-        });
+        return new Bar({ Time: time, Open: open, High: high, Low: low, Close: close, TickVolume: tickVolume });
     }
-    // Метод для визначення видимого діапазону та інтервалу
-    getVisibleRangeAndInterval() {
-        const zoomDurations = [
-            24 * 60, // 1 день в хвилинах
-            12 * 60, // 12 годин
-            6 * 60, // 6 годин
-            3 * 60, // 3 години
-            60, // 1 година
-            30, // 30 хвилин
-            15, // 15 хвилин
-            5, // 5 хвилин
-            1 // 1 хвилина
-        ];
-        const intervals = [
-            '1 day',
-            '12 hours',
-            '6 hours',
-            '3 hours',
-            '1 hour',
-            '30 minutes',
-            '15 minutes',
-            '5 minutes',
-            '1 minute'
-        ];
-        const durationInMinutes = zoomDurations[Math.max(0, Math.min(this.zoomLevel, zoomDurations.length - 1))];
-        const durationInSeconds = durationInMinutes * 60;
-        const currentInterval = intervals[Math.max(0, Math.min(this.zoomLevel, intervals.length - 1))];
-        // Відображення часових діапазонів видимих барів та поточного інтервалу
-        const firstDate = new Date(this.firstVisibleBarTime * 1000);
-        const lastDate = new Date(this.lastVisibleBarTime * 1000);
-        const firstDateString = this.formatDateTime(firstDate);
-        const lastDateString = this.formatDateTime(lastDate);
-        this.ctx.fillStyle = 'black';
-        this.ctx.font = '12px Arial';
-        this.ctx.textAlign = 'left'; // Вирівнювання тексту по лівому краю
-        const timeRangeText = `Visible Range: ${firstDateString} - ${lastDateString} (Interval: ${currentInterval})`;
-        this.ctx.fillText(timeRangeText, this.padding, 20);
-        return { durationInSeconds, durationInMinutes };
-    }
-    // Метод для відображення чорної лінії та плашки над вибраним баром
+    //Метод для відображення чорної лінії та плашки над вибраним баром
     drawSelectedBarHighlight(groupedBars, maxPrice, priceRange, topPadding, availableHeight, width, durationInSeconds, bottomPadding) {
         if (this.selectedBar) {
             // Визначення індексу вибраного бару
@@ -249,67 +203,100 @@ export class Chart {
     }
     // Метод для відображення шкали дат і часу
     drawDateScale(durationInMinutes, leftPadding, height, availableWidth) {
-        // Визначення кількості міток та формат дати на основі рівня зума
-        let labelCount;
-        let includeDate = false;
+        // Определяем количество меток и необходимость включения даты в зависимости от уровня зума
+        const { labelCount, includeDate } = this.calculateLabelCount(durationInMinutes);
+        // Позиция Y для меток времени
+        const labelY = height - 5;
+        // Установка стиля текста
+        this.ctx.fillStyle = 'black';
+        this.ctx.font = '10px Arial';
+        for (let i = 0; i < labelCount; i++) {
+            const positionX = leftPadding + (i * availableWidth) / (labelCount - 1);
+            const time = this.firstVisibleBarTime + (i * (this.lastVisibleBarTime - this.firstVisibleBarTime)) / (labelCount - 1);
+            const date = new Date(time * 1000);
+            // Определяем строку для отображения в зависимости от длительности интервала
+            const dateString = this.formatLabelDate(date, durationInMinutes, includeDate);
+            // Устанавливаем выравнивание текста для первой, последней и промежуточных меток
+            this.ctx.textAlign = this.getTextAlignment(i, labelCount);
+            // Отображение метки времени
+            this.ctx.fillText(dateString, positionX, labelY);
+        }
+    }
+    // Метод для расчета количества меток и необходимости включения даты в зависимости от длительности интервала
+    calculateLabelCount(durationInMinutes) {
         if (durationInMinutes <= 30) {
-            // 1, 5, 15, 30 хвилин
-            labelCount = 6;
-            includeDate = false;
+            return { labelCount: 6, includeDate: false };
         }
         else if (durationInMinutes <= 180) {
-            // 1, 3 години
-            labelCount = 5;
-            includeDate = true;
+            return { labelCount: 5, includeDate: true };
         }
         else if (durationInMinutes <= 720) {
-            // 6, 12 годин
-            labelCount = 4;
-            includeDate = true;
+            return { labelCount: 4, includeDate: true };
         }
         else {
-            // 1 день
-            // Визначаємо кількість днів між першим та останнім видимим баром
+            // Определяем количество дней между первым и последним видимым баром
             const startDate = new Date(this.firstVisibleBarTime * 1000);
             const endDate = new Date(this.lastVisibleBarTime * 1000);
             const dayDifference = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-            labelCount = Math.min(dayDifference, 4);
-            includeDate = true;
-            if (labelCount < 2) {
-                labelCount = 2; // Мінімум 2 мітки для днів
-            }
+            const labelCount = Math.max(2, Math.min(dayDifference, 4)); // Минимум 2 метки
+            return { labelCount, includeDate: true };
         }
-        // Фіксовані позиції для міток дат
+    }
+    // Метод для форматирования даты метки в зависимости от длительности интервала
+    formatLabelDate(date, durationInMinutes, includeDate) {
+        if (durationInMinutes >= 1440) {
+            return this.formatDate(date); // Форматирование только даты
+        }
+        else if (includeDate) {
+            return this.formatDateTime(date); // Форматирование даты и времени
+        }
+        else {
+            return this.formatTime(date); // Форматирование только времени
+        }
+    }
+    // Метод для получения выравнивания текста
+    getTextAlignment(index, labelCount) {
+        if (index === 0) {
+            return 'left';
+        }
+        else if (index === labelCount - 1) {
+            return 'right';
+        }
+        else {
+            return 'center';
+        }
+    }
+    // Метод для форматування дати
+    formatDate(date) {
+        return `${date.getDate().toString().padStart(2, '0')}.${(date.getMonth() + 1)
+            .toString()
+            .padStart(2, '0')}.${date.getFullYear()}`;
+    }
+    // Метод для форматування часу
+    formatTime(date) {
+        return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+    }
+    // Метод для форматування дати та часу
+    formatDateTime(date) {
+        return `${this.formatDate(date)} ${this.formatTime(date)}`;
+    }
+    // Метод для визначення видимого діапазону та інтервалу
+    getVisibleRangeAndInterval() {
+        const intervals = ['1 day', '12 hours', '6 hours', '3 hours', '1 hour', '30 minutes', '15 minutes', '5 minutes', '1 minute'];
+        const durationInMinutes = this.zoomDurations[Math.max(0, Math.min(this.zoomLevel, this.zoomDurations.length - 1))];
+        const durationInSeconds = durationInMinutes * 60;
+        const currentInterval = intervals[Math.max(0, Math.min(this.zoomLevel, intervals.length - 1))];
+        // Відображення часових діапазонів видимих барів та поточного інтервалу
+        const firstDate = new Date(this.firstVisibleBarTime * 1000);
+        const lastDate = new Date(this.lastVisibleBarTime * 1000);
+        const firstDateString = this.formatDateTime(firstDate);
+        const lastDateString = this.formatDateTime(lastDate);
         this.ctx.fillStyle = 'black';
-        this.ctx.font = '10px Arial';
-        const labelY = height - 5; // Позиція Y для міток часу
-        for (let i = 0; i < labelCount; i++) {
-            let positionX = leftPadding + (i * availableWidth) / (labelCount - 1);
-            const time = this.firstVisibleBarTime + (i * (this.lastVisibleBarTime - this.firstVisibleBarTime)) / (labelCount - 1);
-            const date = new Date(time * 1000);
-            let dateString;
-            if (durationInMinutes >= 1440) { // Якщо інтервал 1 день або більше
-                dateString = this.formatDate(date);
-            }
-            else if (includeDate) {
-                dateString = this.formatDateTime(date);
-            }
-            else {
-                dateString = this.formatTime(date);
-            }
-            // Налаштування вирівнювання тексту
-            if (i === 0) {
-                this.ctx.textAlign = 'left';
-            }
-            else if (i === labelCount - 1) {
-                this.ctx.textAlign = 'right';
-            }
-            else {
-                this.ctx.textAlign = 'center';
-            }
-            // Відображення мітки часу
-            this.ctx.fillText(dateString, positionX, labelY);
-        }
+        this.ctx.font = '12px Arial';
+        this.ctx.textAlign = 'left'; // Вирівнювання тексту по лівому краю
+        const timeRangeText = `Visible Range: ${firstDateString} - ${lastDateString} (Interval: ${currentInterval})`;
+        this.ctx.fillText(timeRangeText, this.padding, 20);
+        return { durationInSeconds, durationInMinutes };
     }
     // Метод для відображення графіку
     render() {
@@ -384,6 +371,9 @@ export class Chart {
         // Якщо немає видимих барів, виходимо з методу
         if (visibleBars.length === 0)
             return;
+        if (this.firstVisibleBarTime !== 0 && this.lastVisibleBarTime !== 0) {
+            this.drawDateScale(durationInMinutes, leftPadding, height, availableWidth);
+        }
         this.drawDateScale(durationInMinutes, leftPadding, height, availableWidth);
         // Відображення плашки над вибраним об'ємним блоком
         if (this.selectedVolumeBarIndex !== null) {
@@ -414,7 +404,7 @@ export class Chart {
             if (labelY < topPadding) {
                 labelY = topPadding;
             }
-            // Відображення плашки із заокругленими краями
+            // Відображення плашки 
             this.drawRoundedRect(labelX, labelY, labelWidth, labelHeight, 5, '#f0f0f0');
             // Відображення тексту на плашці
             this.ctx.fillStyle = 'black';
@@ -425,20 +415,6 @@ export class Chart {
         }
         // Відображення лінії та плашки над вибраним баром
         this.drawSelectedBarHighlight(groupedBars, maxPrice, priceRange, topPadding, availableHeight, width, durationInSeconds, bottomPadding);
-    }
-    // Метод для форматування дати
-    formatDate(date) {
-        return `${date.getDate().toString().padStart(2, '0')}.${(date.getMonth() + 1)
-            .toString()
-            .padStart(2, '0')}.${date.getFullYear()}`;
-    }
-    // Метод для форматування часу
-    formatTime(date) {
-        return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
-    }
-    // Метод для форматування дати та часу
-    formatDateTime(date) {
-        return `${this.formatDate(date)} ${this.formatTime(date)}`;
     }
     // Метод для масштабування графіка
     zoom(zoomIn) {
@@ -463,9 +439,6 @@ export class Chart {
     // Метод для прокручування графіка
     scroll(deltaX) {
         const width = this.canvas.width;
-        const leftPadding = this.padding;
-        const rightPadding = this.padding + 50; // 50 - ширина шкали цін
-        const totalContentWidth = this.totalChartWidth - leftPadding - rightPadding;
         const maxOffsetX = 0;
         const minOffsetX = width - this.totalChartWidth;
         this.offsetX += deltaX;
@@ -502,7 +475,6 @@ export class Chart {
     }
     // Метод для визначення бару під курсором
     getBarAtPosition(x, y) {
-        const width = this.canvas.width;
         const height = this.canvas.height;
         // Параметри відображення (повинні співпадати з параметрами в методі render)
         const barSpacing = 5;
@@ -511,9 +483,7 @@ export class Chart {
         const volumeBarHeight = 30;
         const dateLabelHeight = 20;
         const bottomPadding = volumeBarHeight + dateLabelHeight;
-        const priceScaleWidth = 50;
         const leftPadding = this.padding;
-        const rightPadding = this.padding + priceScaleWidth;
         const availableHeight = height - topPadding - bottomPadding;
         // Обчислення maxPrice та minPrice так само, як в render()
         const groupedBars = this.groupBarsByZoomLevel();
@@ -540,17 +510,13 @@ export class Chart {
     }
     // Метод для визначення об'ємного блоку під курсором
     getVolumeBarAtPosition(x, y) {
-        const width = this.canvas.width;
         const height = this.canvas.height;
         // Параметри відображення (повинні співпадати з параметрами в методі render)
         const barSpacing = 5;
         const barWidth = 10;
         const volumeBarHeight = 30;
         const dateLabelHeight = 20;
-        const bottomPadding = volumeBarHeight + dateLabelHeight;
-        const priceScaleWidth = 50;
         const leftPadding = this.padding;
-        const rightPadding = this.padding + priceScaleWidth;
         const groupedBars = this.groupBarsByZoomLevel();
         // Перебираємо всі об'ємні блоки та перевіряємо, чи потрапляє координата в область блоку
         for (let i = 0; i < groupedBars.length; i++) {
