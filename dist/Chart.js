@@ -7,7 +7,6 @@ export class Chart {
         this.offsetX = 0;
         this.zoomLevel = 6;
         this.padding = 30;
-        this.offsetXInitialized = false;
         this.totalChartWidth = 0;
         this.selectedBar = null; // Вибраний бар для чорної лінії та плашки
         this.selectedVolumeBarIndex = null; // Індекс вибраного блоку об'єму торгівлі

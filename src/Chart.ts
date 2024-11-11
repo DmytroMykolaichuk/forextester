@@ -10,7 +10,6 @@ export class Chart {
     private offsetX: number = 0;
     private zoomLevel: number = 6;
     private padding: number = 30;
-    private offsetXInitialized: boolean = false;
     private totalChartWidth: number = 0;
     private selectedBar: Bar | null = null; // Вибраний бар для чорної лінії та плашки
     private selectedVolumeBarIndex: number | null = null; // Індекс вибраного блоку об'єму торгівлі
@@ -296,8 +295,7 @@ export class Chart {
             this.ctx.fillText(priceText, width - priceScaleWidth + priceScalePadding, position.y + 3);
         });
     }
-    
-    
+
 // Метод для відображення шкали дат і часу
 private drawDateScale(durationInMinutes: number, leftPadding: number, height: number, availableWidth: number) {
     // Определяем количество меток и необходимость включения даты в зависимости от уровня зума
@@ -398,8 +396,9 @@ private formatDateTime(date: Date): string {
         const timeRangeText = `Visible Range: ${firstDateString} - ${lastDateString} (Interval: ${currentInterval})`;
         this.ctx.fillText(timeRangeText, this.padding, 20);
     }
-    
-    // Метод для відображення плашки над вибраним об'ємним блоком
+
+
+// Метод для відображення плашки над вибраним об'ємним блоком
 private drawVolumeBarLabel(groupedBars: Bar[], leftPadding: number, width: number, barWidth: number, barSpacing: number, volumeBarHeight: number, dateLabelHeight: number, topPadding: number, maxVolume: number, height: number) {
     if (this.selectedVolumeBarIndex !== null) {
         const index = this.selectedVolumeBarIndex;
@@ -529,12 +528,7 @@ private drawVolumeBarLabel(groupedBars: Bar[], leftPadding: number, width: numbe
         // Добавить отображение видимого диапазона
         this.getVisibleRangeAndInterval(); // Добавление этой строки
     }
-    
-       
-    
-    
-    
-    
+
 
     // Метод для масштабування графіка
     public zoom(zoomIn: boolean) {
@@ -560,9 +554,6 @@ private drawVolumeBarLabel(groupedBars: Bar[], leftPadding: number, width: numbe
         this.initializeVisibleRange(); // Обновление видимой области
         this.render(); // Перерисовываем график
     }
-    
-    
-    
 
     private setOffsetForCenterTime(centerTime: number): void {
         const groupedBars = this.groupBarsByZoomLevel();
@@ -600,10 +591,6 @@ private drawVolumeBarLabel(groupedBars: Bar[], leftPadding: number, width: numbe
             this.offsetX = minOffsetX;
         }
     }
-    
-    
-    
-
 
     // Метод для прокручування графіка
     public scroll(deltaX: number) {
