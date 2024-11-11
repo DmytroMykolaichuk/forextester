@@ -302,6 +302,47 @@ export class Chart {
         this.ctx.fillText(timeRangeText, this.padding, 20);
         return { durationInSeconds, durationInMinutes };
     }
+    // Метод для відображення плашки над вибраним об'ємним блоком
+    drawVolumeBarLabel(groupedBars, leftPadding, width, barWidth, barSpacing, volumeBarHeight, dateLabelHeight, topPadding, maxVolume, height) {
+        if (this.selectedVolumeBarIndex !== null) {
+            const index = this.selectedVolumeBarIndex;
+            const bar = groupedBars[index];
+            const barX = this.offsetX + leftPadding + index * (barWidth + barSpacing);
+            // Позиція Y для об'ємного блоку
+            const volumeHeight = (bar.getTickVolume() / maxVolume) * volumeBarHeight;
+            const minVolumeHeight = 1;
+            const actualVolumeHeight = Math.max(volumeHeight, minVolumeHeight);
+            const volumeY = height - dateLabelHeight - actualVolumeHeight;
+            // Підготовка даних для плашки
+            const volumeText = `Trade Volume: ${bar.getTickVolume()}`;
+            // Встановлюємо шрифт і розраховуємо розміри плашки
+            this.ctx.font = '10px Arial';
+            const labelWidth = this.ctx.measureText(volumeText).width + 10;
+            const labelHeight = 20;
+            // Позиціювання плашки над об'ємним блоком
+            let labelX = barX - labelWidth / 2;
+            let labelY = volumeY - labelHeight - 5;
+            // Переконуємось, що плашка не виходить за межі графіка
+            const rightPadding = this.padding + 50; // 50 - ширина шкали цін
+            if (labelX < leftPadding) {
+                labelX = leftPadding;
+            }
+            else if (labelX + labelWidth > width - rightPadding) {
+                labelX = width - rightPadding - labelWidth;
+            }
+            if (labelY < topPadding) {
+                labelY = topPadding;
+            }
+            // Відображення плашки із заокругленими краями
+            this.drawRoundedRect(labelX, labelY, labelWidth, labelHeight, 5, '#f0f0f0');
+            // Відображення тексту на плашці
+            this.ctx.fillStyle = 'black';
+            this.ctx.textAlign = 'center';
+            const textX = labelX + labelWidth / 2;
+            const textY = labelY + labelHeight / 2 + 3;
+            this.ctx.fillText(volumeText, textX, textY);
+        }
+    }
     // Метод для відображення графіку
     render() {
         // Параметри відображення
@@ -364,8 +405,8 @@ export class Chart {
                 // Встановлюємо часи першого та останнього видимих барів
                 if (visibleBars.length === 1) {
                     this.firstVisibleBarTime = bar.getTime();
+                    this.lastVisibleBarTime = bar.getTime() + durationInSeconds;
                 }
-                this.lastVisibleBarTime = bar.getTime() + durationInSeconds;
                 //Рендер барів обєма торгівлі
                 this.drawVolumeBars(bar, maxVolume, volumeBarHeight, barWidth, height, dateLabelHeight, barX);
                 //Рендер основних барів
@@ -380,43 +421,7 @@ export class Chart {
         }
         this.drawDateScale(durationInMinutes, leftPadding, height, availableWidth);
         // Відображення плашки над вибраним об'ємним блоком
-        if (this.selectedVolumeBarIndex !== null) {
-            const index = this.selectedVolumeBarIndex;
-            const bar = groupedBars[index];
-            const barX = this.offsetX + leftPadding + index * (barWidth + barSpacing);
-            // Позиція Y для об'ємного блоку
-            const volumeHeight = (bar.getTickVolume() / maxVolume) * volumeBarHeight;
-            const minVolumeHeight = 1;
-            const actualVolumeHeight = Math.max(volumeHeight, minVolumeHeight);
-            const volumeY = height - dateLabelHeight - actualVolumeHeight;
-            // Підготовка даних для плашки
-            const volumeText = `Trade Volume: ${bar.getTickVolume()}`;
-            // Встановлюємо шрифт і розраховуємо розміри плашки
-            this.ctx.font = '10px Arial';
-            const labelWidth = this.ctx.measureText(volumeText).width + 10;
-            const labelHeight = 20;
-            // Позиціювання плашки над об'ємним блоком
-            let labelX = barX - labelWidth / 2;
-            let labelY = volumeY - labelHeight - 5;
-            // Переконуємось, що плашка не виходить за межі графіка
-            if (labelX < leftPadding) {
-                labelX = leftPadding;
-            }
-            else if (labelX + labelWidth > width - rightPadding) {
-                labelX = width - rightPadding - labelWidth;
-            }
-            if (labelY < topPadding) {
-                labelY = topPadding;
-            }
-            // Відображення плашки 
-            this.drawRoundedRect(labelX, labelY, labelWidth, labelHeight, 5, '#f0f0f0');
-            // Відображення тексту на плашці
-            this.ctx.fillStyle = 'black';
-            this.ctx.textAlign = 'center';
-            const textX = labelX + labelWidth / 2;
-            const textY = labelY + labelHeight / 2 + 3;
-            this.ctx.fillText(volumeText, textX, textY);
-        }
+        this.drawVolumeBarLabel(groupedBars, leftPadding, width, barWidth, barSpacing, volumeBarHeight, dateLabelHeight, topPadding, maxVolume, height);
         // Відображення лінії та плашки над вибраним баром
         this.drawSelectedBarHighlight(groupedBars, maxPrice, priceRange, topPadding, availableHeight, width, durationInSeconds, bottomPadding);
     }
