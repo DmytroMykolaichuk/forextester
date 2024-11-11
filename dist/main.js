@@ -22,6 +22,7 @@ async function fetchData(apiUrl) {
 function initializeChart(data) {
     const canvas = document.getElementById('chartCanvas');
     const chart = new Chart(canvas, data);
+    chart.initializeVisibleRange();
     chart.render();
     return chart;
 }

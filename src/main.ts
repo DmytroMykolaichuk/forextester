@@ -26,6 +26,7 @@ async function fetchData(apiUrl: string) {
 function initializeChart(data: DataChunk[]): Chart {
     const canvas = document.getElementById('chartCanvas') as HTMLCanvasElement;
     const chart = new Chart(canvas, data);
+    chart.initializeVisibleRange();
     chart.render();
     return chart;
 }
