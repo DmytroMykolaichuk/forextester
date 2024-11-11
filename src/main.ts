@@ -38,7 +38,7 @@ function setupEventListeners(chart: Chart) {
 function handleWheelEvent(chart: Chart) {
     return (event: WheelEvent) => {
         event.preventDefault();
-        chart.zoom(event.deltaY < 0);
+        chart.zoom(event.deltaY > 0);
     };
 }
 

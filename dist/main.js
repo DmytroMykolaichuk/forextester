@@ -33,7 +33,7 @@ function setupEventListeners(chart) {
 function handleWheelEvent(chart) {
     return (event) => {
         event.preventDefault();
-        chart.zoom(event.deltaY < 0);
+        chart.zoom(event.deltaY > 0);
     };
 }
 function handleMouseDownEvent(chart) {
