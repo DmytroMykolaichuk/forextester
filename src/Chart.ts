@@ -40,7 +40,7 @@ export class Chart {
         this.canvasBoundingRect = this.canvas.getBoundingClientRect();
         // Обробка чанків даних і формування масиву барів
         this.processDataChunks();
-    
+        this.scrollToEnd();
         this.canvas.addEventListener('click', this.onCanvasClick.bind(this));
     }
 
@@ -621,8 +621,26 @@ private drawVolumeBarLabel(groupedBars: Bar[], leftPadding: number, width: numbe
         this.initializeVisibleRange();
         this.render();
     }
+
+    private scrollToEnd(): void {
+        // Группируем бары на основе текущего уровня зума
+        const groupedBars = this.groupBarsByZoomLevel();
+        
+        if (groupedBars.length === 0) {
+            return;
+        }
     
+        // Рассчитываем общую ширину графика
+        this.totalChartWidth = groupedBars.length * (this.barWidth + 5) + this.padding * 2;
     
+        // Рассчитываем значение смещения так, чтобы последние бары были в зоне видимости
+        const width = this.canvas.width;
+        const rightPadding = this.padding + 50; // Ширина шкалы цен
+        const visibleWidth = width - this.padding - rightPadding;
+    
+        // Устанавливаем смещение `offsetX` так, чтобы последние бары были в зоне видимости
+        this.offsetX = Math.min(0, visibleWidth - this.totalChartWidth);
+    }
     
 
     // Обробник кліка по полотну
