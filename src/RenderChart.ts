@@ -74,7 +74,7 @@ export class RenderChart {
         let volumeHeight = Math.max((bar.getTickVolume() / maxVolume) * this.config.volumeBarHeight, 1);
         const volumeY = this.height - this.config.dateLabelHeight - volumeHeight;
 
-        this.setContextStyles({ fillStyle: 'blue' });
+        this.setContextStyles({ fillStyle: '#5460cf' });
         this.ctx.fillRect(barX - this.config.barWidth / 2, volumeY, this.config.barWidth, volumeHeight);
 
         if (this.selectedVolumeBarIndex === index) {
@@ -160,13 +160,12 @@ export class RenderChart {
         });
     }
 
-    // Метод для отображения шкалы дат и времени
 // Метод для отображения шкалы дат и времени
-public drawDateScale(firstVisibleBarTime,durationInMinutes: number) {
-    const { labelCount, includeDate } = this.calculateLabelCount(durationInMinutes);
+public drawDateScale(firstVisibleBarTime, durationInSec: number) {
+    const { labelCount, includeDate } = this.calculateLabelCount(durationInSec);
     const labelY = this.height - 5;
     const startTime = firstVisibleBarTime;  // Начальное время для шкалы
-    const intervalInSeconds = durationInMinutes * 60;
+    const intervalInSeconds = durationInSec * 60 * 60;//час
     
     this.setContextStyles({ fillStyle: 'black', font: '10px Arial' });
 
@@ -181,7 +180,6 @@ public drawDateScale(firstVisibleBarTime,durationInMinutes: number) {
         this.ctx.fillText(dateString, positionX, labelY);
     }
 }
-
 
     // Метод для визначення видимого діапазону та інтервалу
     public getVisibleRangeAndInterval(zoomLevel,firstVisibleBarTime,lastVisibleBarTime): void {
@@ -273,9 +271,10 @@ public drawDateScale(firstVisibleBarTime,durationInMinutes: number) {
     this.selectedVolumeBarIndex = null; // Скидаємо вибраний об'ємний блок
 }
 
-    public updateSelectedVolumeBarIndex(index) {
-    this.selectedVolumeBarIndex=index
+    public updateSelectedVolumeBarIndex(index:number | null) {
+        this.selectedVolumeBarIndex = index
 }
+
 
     // Метод для форматування дати
     private formatDate(date: Date): string {

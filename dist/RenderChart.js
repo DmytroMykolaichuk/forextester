@@ -51,7 +51,7 @@ export class RenderChart {
     drawVolumeBars(bar, index, maxVolume, barX) {
         let volumeHeight = Math.max((bar.getTickVolume() / maxVolume) * this.config.volumeBarHeight, 1);
         const volumeY = this.height - this.config.dateLabelHeight - volumeHeight;
-        this.setContextStyles({ fillStyle: 'blue' });
+        this.setContextStyles({ fillStyle: '#5460cf' });
         this.ctx.fillRect(barX - this.config.barWidth / 2, volumeY, this.config.barWidth, volumeHeight);
         if (this.selectedVolumeBarIndex === index) {
             this.drawVolumeBarLabel(barX, volumeY, bar.getTickVolume());
@@ -124,12 +124,11 @@ export class RenderChart {
         });
     }
     // Метод для отображения шкалы дат и времени
-    // Метод для отображения шкалы дат и времени
-    drawDateScale(firstVisibleBarTime, durationInMinutes) {
-        const { labelCount, includeDate } = this.calculateLabelCount(durationInMinutes);
+    drawDateScale(firstVisibleBarTime, durationInSec) {
+        const { labelCount, includeDate } = this.calculateLabelCount(durationInSec);
         const labelY = this.height - 5;
         const startTime = firstVisibleBarTime; // Начальное время для шкалы
-        const intervalInSeconds = durationInMinutes * 60;
+        const intervalInSeconds = durationInSec * 60 * 60; //час
         this.setContextStyles({ fillStyle: 'black', font: '10px Arial' });
         for (let i = 0; i < labelCount; i++) {
             // Позиция X для метки

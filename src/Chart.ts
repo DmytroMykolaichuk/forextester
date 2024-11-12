@@ -10,21 +10,18 @@ export class Chart {
     private bars: Bar[] = []; // Оброблений масив барів
     private visibleBars: Bar[] = []; // Масив видимих барів
     private offsetX: number = 0;
+    private barWidth: number = 10; // Ширина бару
     private zoomLevel: number = 6;
     private padding: number = 30;
+    private barSpacing = 5;
     private width: number 
     private height: number;
-    private barSpacing = 5;
     private leftPadding : number;
     private rightPadding : number; // 50 - ширина шкалы цен
-    private totalChartWidth: number = 0;
+    private totalChartWidth: number;
     private canvasBoundingRect: DOMRect; // Для отримання позиції полотна на сторінці
-    private firstVisibleBarTime: number = 0;
-    private lastVisibleBarTime: number = 0;
-    private barWidth: number = 10; // Ширина бару
-    private durationInMinutes: number = 0;  // Продолжительность в минутах для текущего уровня зума
-    private durationInSeconds: number = 0;  // Продолжительность в секундах для текущего уровня зума
-    private maxVolume: number = 0;          // Максимальный объем для видимых баров
+    private firstVisibleBarTime: number;
+    private lastVisibleBarTime: number;
     private zoomDurations: number[] = [
         24 * 60, // 1 день в хвилинах
         12 * 60, // 12 годин
@@ -78,7 +75,7 @@ export class Chart {
 
     // Метод для групування барів на основі рівня зума
     private groupBarsByZoomLevel(): Bar[] {
-        const durationInSeconds = this.getDurationInMinuteAndSeconds()
+        const durationInSeconds = this.getDurationInSeconds()
 
         const groupedBars: Bar[] = [];
 
@@ -123,10 +120,9 @@ export class Chart {
     }
 
     // Метод для вирахування зуму в часі
-    private getDurationInMinuteAndSeconds():number {
+    private getDurationInSeconds():number {
         const durationInMinutes = this.zoomDurations[Math.max(0, Math.min(this.zoomLevel, this.zoomDurations.length - 1))];
         const durationInSeconds = durationInMinutes * 60; // Час для групи барів в секундах
-
         return durationInSeconds
     }
 
@@ -178,26 +174,26 @@ export class Chart {
     
         // Определяем максимальные и минимальные цены для видимых баров
         const {maxPrice, priceRange} = this.getPriceRange(this.visibleBars)
-    
+        // Определяем максимальный объем для нормализации высоты объемных блоков
+        const maxVolume = Math.max(...groupedBars.map(bar => bar.getTickVolume())) || 1;
+        
         // Рисуем шкалу цен с учетом динамического изменения
         this.renderChart.drawPriceScale(maxPrice, priceRange);
     
-        // Определяем максимальный объем для нормализации высоты объемных блоков
-        this.maxVolume = Math.max(...groupedBars.map(bar => bar.getTickVolume())) || 1;
-    
         // Рисуем бары
-        this.renderBars(groupedBars, maxPrice, priceRange );
+        this.renderBars(groupedBars, maxPrice, priceRange, maxVolume );
     
         // Рисуем шкалу дат и времени
-        this.renderChart.drawDateScale(this.firstVisibleBarTime,this.durationInMinutes);
+        this.renderChart.drawDateScale(this.firstVisibleBarTime,this.getDurationInSeconds());
     
         // Рисуем линию и плашку над выбранным баром
-        this.renderChart.drawSelectedBarHighlight( maxPrice, priceRange, this.durationInSeconds);
+        this.renderChart.drawSelectedBarHighlight( maxPrice, priceRange, this.getDurationInSeconds());
     
         // Добавить отображение видимого диапазона
         this.renderChart.getVisibleRangeAndInterval(this.zoomLevel, this.firstVisibleBarTime, this.lastVisibleBarTime);
     }
 
+    // Метод для динамічної шкали цін
     private getPriceRange(visibleBars:Bar[]):{maxPrice:number,priceRange:number} {
                 // Определяем максимальные и минимальные цены для видимых баров
                 const maxPrice = Math.max(...visibleBars.map(bar => bar.getHigh()));
@@ -212,14 +208,14 @@ export class Chart {
     }
 
     // Подметод для рендеринга баров и объемов
-    private renderBars(groupedBars: Bar[], maxPrice: number, priceRange: number) {
+    private renderBars(groupedBars: Bar[], maxPrice: number, priceRange: number, maxVolume:number) {
         groupedBars.forEach((bar, index) => {
             const barX = this.offsetX + this.leftPadding + index * (this.barWidth + this.barSpacing);
             // Проверка видимости бара
             if (barX + this.barWidth >= this.leftPadding && barX - this.barWidth <= this.width - this.rightPadding) {
                 
                 // Рисуем объемные бары
-                this.renderChart.drawVolumeBars(bar,index, this.maxVolume, barX);
+                this.renderChart.drawVolumeBars(bar,index, maxVolume, barX);
 
                 // Рисуем основные бары
                 this.renderChart.drawBars(bar, maxPrice, priceRange, barX);
@@ -239,10 +235,6 @@ export class Chart {
             this.zoomLevel++;
         }
     
-        // Обновляем продолжительность в секундах и минутах для текущего уровня зума
-        this.durationInMinutes = this.zoomDurations[this.zoomLevel];
-        this.durationInSeconds = this.durationInMinutes * 60;
-    
         // Пересчитываем смещение
         this.setOffsetForCenterTime(centerTime);
     
@@ -252,6 +244,7 @@ export class Chart {
         this.render(); // Перерисовываем график
     }
 
+    // Метод для канвас геометрії при зумі
     private setOffsetForCenterTime(centerTime: number): void {
         const groupedBars = this.groupBarsByZoomLevel();
     
@@ -321,9 +314,7 @@ export class Chart {
         this.totalChartWidth = groupedBars.length * (this.barWidth + 5) + this.padding * 2;
     
         // Рассчитываем значение смещения так, чтобы последние бары были в зоне видимости
-        const width = this.canvas.width;
-        const rightPadding = this.padding + 50; // Ширина шкалы цен
-        const visibleWidth = width - this.padding - rightPadding;
+        const visibleWidth = this.width - this.padding - this.rightPadding;
     
         // Устанавливаем смещение `offsetX` так, чтобы последние бары были в зоне видимости
         this.offsetX = Math.min(0, visibleWidth - this.totalChartWidth);
@@ -354,14 +345,12 @@ export class Chart {
 
     // Метод для визначення бару під курсором
     private getBarAtPosition(x: number, y: number): Bar | null {
-        const height = this.canvas.height;
-
         // Параметри відображення (повинні співпадати з параметрами в методі render)
         const topPadding = 30;
         const volumeBarHeight = 30;
         const dateLabelHeight = 20;
         const bottomPadding = volumeBarHeight + dateLabelHeight;
-        const availableHeight = height - topPadding - bottomPadding;
+        const availableHeight = this.height - topPadding - bottomPadding;
 
         // Обчислення maxPrice та minPrice так само, як в render()
         const groupedBars = this.groupBarsByZoomLevel();
@@ -387,10 +376,8 @@ export class Chart {
         return null;
     }
 
-    // Метод для визначення об'ємного блоку під курсором
+    // Метод для визначення об'ємного(синього) блоку під курсором
     private getVolumeBarAtPosition(x: number, y: number): number | null {
-        const height = this.canvas.height;
-
         // Параметри відображення (повинні співпадати з параметрами в методі render)
         const volumeBarHeight = 30;
         const dateLabelHeight = 20;
@@ -402,8 +389,8 @@ export class Chart {
         for (let i = 0; i < groupedBars.length; i++) {
             const barX = this.offsetX + leftPadding + i * (this.barWidth + this.barSpacing);
 
-            const volumeYStart = height - dateLabelHeight - volumeBarHeight;
-            const volumeYEnd = height - dateLabelHeight;
+            const volumeYStart = this.height - dateLabelHeight - volumeBarHeight;
+            const volumeYEnd = this.height - dateLabelHeight;
 
             if (
                 x >= barX - this.barWidth / 2 &&

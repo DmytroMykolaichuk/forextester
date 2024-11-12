@@ -39,9 +39,9 @@ export class Bar {
     // Отримання кольору бару в залежності від значення Open і Close
     public getColor(): string {
         if (this.data.Close > this.data.Open) {
-            return 'green'; // Бар росту
+            return '#238b14'; // Бар росту
         } else if (this.data.Close < this.data.Open) {
-            return 'red'; // Бар падіння
+            return '#e93131'; // Бар падіння
         } else {
             return 'gray'; // Бар без змін
         }
