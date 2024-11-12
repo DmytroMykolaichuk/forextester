@@ -156,13 +156,13 @@ export class RenderChart {
         this.ctx.fillText(timeRangeText, this.leftPadding, 20);
     }
     calculateLabelCount(durationInMinutes) {
-        if (durationInMinutes <= 30) {
+        if (durationInMinutes / 60 <= 30) {
             return { labelCount: 6, includeDate: false };
         }
-        else if (durationInMinutes <= 180) {
+        else if (durationInMinutes / 60 <= 180) {
             return { labelCount: 5, includeDate: true };
         }
-        else if (durationInMinutes <= 720) {
+        else if (durationInMinutes / 60 <= 720) {
             return { labelCount: 4, includeDate: true };
         }
         else {
