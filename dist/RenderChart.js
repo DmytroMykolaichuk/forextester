@@ -2,10 +2,6 @@ export class RenderChart {
     constructor(canvas) {
         this.selectedBar = null;
         this.selectedVolumeBarIndex = null;
-        this.visibleBars = []; // Масив видимих барів
-        this.offsetX = 0;
-        this.firstVisibleBarTime = 0;
-        this.lastVisibleBarTime = 0;
         // Конфигурационные параметры
         this.config = {
             padding: 30,
@@ -27,7 +23,6 @@ export class RenderChart {
         this.rightPadding = this.config.padding + this.config.priceScaleWidth;
         this.availableHeight = this.height - this.config.topPadding - this.bottomPadding;
         this.availableWidth = this.width - this.leftPadding - this.rightPadding;
-        this.barWidth = this.config.barWidth;
     }
     // Общий метод для установки стилей контекста
     setContextStyles(styles) {

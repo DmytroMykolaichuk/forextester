@@ -6,11 +6,6 @@ export class RenderChart {
     private ctx: CanvasRenderingContext2D;
     private selectedBar: Bar | null = null; 
     private selectedVolumeBarIndex: number | null = null;
-    private visibleBars: Bar[] = []; // Масив видимих барів
-    private offsetX: number = 0;
-    private totalChartWidth: number
-    private firstVisibleBarTime: number = 0;
-    private lastVisibleBarTime: number = 0;
     
     private height: number;
     private width: number;
@@ -19,7 +14,6 @@ export class RenderChart {
     private bottomPadding: number;
     private leftPadding: number;
     private rightPadding: number;
-    private barWidth:number
     // Конфигурационные параметры
     private config = {
         padding: 30,
@@ -45,7 +39,6 @@ export class RenderChart {
         this.rightPadding = this.config.padding + this.config.priceScaleWidth;
         this.availableHeight = this.height - this.config.topPadding - this.bottomPadding;
         this.availableWidth = this.width - this.leftPadding - this.rightPadding;
-        this.barWidth= this.config.barWidth
     }
 
     // Общий метод для установки стилей контекста
