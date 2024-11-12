@@ -1,6 +1,7 @@
 // Chart.ts
 import { Bar } from './Bar';
 import { RenderChart } from './RenderChart';
+import { TimeManager } from './TimeManager';
 export class Chart {
     constructor(canvas, dataChunks) {
         this.bars = []; // Оброблений масив барів
@@ -10,11 +11,7 @@ export class Chart {
         this.padding = 30;
         this.barSpacing = 5;
         this.totalChartWidth = 0;
-        this.firstVisibleBarTime = 0;
-        this.lastVisibleBarTime = 0;
         this.barWidth = 10; // Ширина бару
-        this.durationInMinutes = 0; // Продолжительность в минутах для текущего уровня зума
-        this.durationInSeconds = 0; // Продолжительность в секундах для текущего уровня зума
         this.maxVolume = 0; // Максимальный объем для видимых баров
         this.zoomDurations = [
             24 * 60, // 1 день в хвилинах
@@ -36,10 +33,11 @@ export class Chart {
         this.rightPadding = this.padding + 50;
         this.canvasBoundingRect = this.canvas.getBoundingClientRect();
         this.renderChart = new RenderChart(this.canvas);
+        this.timeManager = new TimeManager(this.ctx);
         // Обробка чанків даних і формування масиву барів
         this.processDataChunks();
         this.scrollToEnd();
-        this.canvas.addEventListener('click', this.onCanvasClick.bind(this));
+        this.canvas.addEventListener('click', (event) => this.onCanvasClick(event));
     }
     // Метод для обробки чанків даних і формування масиву барів з обох чанків
     processDataChunks() {
@@ -65,9 +63,8 @@ export class Chart {
     groupBarsByZoomLevel() {
         const durationInSeconds = this.getDurationInMinuteAndSeconds();
         const groupedBars = [];
-        if (this.bars.length === 0) {
+        if (this.bars.length === 0)
             return groupedBars;
-        }
         let currentGroup = [];
         let currentGroupStartTime = Math.floor(this.bars[0].getTime() / durationInSeconds) * durationInSeconds;
         for (const bar of this.bars) {
@@ -101,8 +98,8 @@ export class Chart {
     }
     // Метод для вирахування зуму в часі
     getDurationInMinuteAndSeconds() {
-        const durationInMinutes = this.zoomDurations[Math.max(0, Math.min(this.zoomLevel, this.zoomDurations.length - 1))];
-        const durationInSeconds = durationInMinutes * 60; // Час для групи барів в секундах
+        const durationInSeconds = this.zoomDurations[Math.max(0, Math.min(this.zoomLevel, this.zoomDurations.length - 1))] * 60;
+        ;
         return durationInSeconds;
     }
     initializeVisibleRange() {
@@ -127,39 +124,11 @@ export class Chart {
         });
         // Если видимые бары найдены, обновляем значения firstVisibleBarTime и lastVisibleBarTime
         if (visibleBars.length > 0) {
-            this.firstVisibleBarTime = visibleBars[0].getTime();
-            this.lastVisibleBarTime = visibleBars[visibleBars.length - 1].getTime();
+            const firstVisibleBarTime = visibleBars[0].getTime();
+            const lastVisibleBarTime = visibleBars[visibleBars.length - 1].getTime();
+            this.timeManager.updateCurrentPeriod(firstVisibleBarTime, lastVisibleBarTime);
         }
         this.visibleBars = visibleBars;
-    }
-    // Метод для форматування дати
-    formatDate(date) {
-        return `${date.getDate().toString().padStart(2, '0')}.${(date.getMonth() + 1)
-            .toString()
-            .padStart(2, '0')}.${date.getFullYear()}`;
-    }
-    // Метод для форматування часу
-    formatTime(date) {
-        return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
-    }
-    // Метод для форматування дати та часу
-    formatDateTime(date) {
-        return `${this.formatDate(date)} ${this.formatTime(date)}`;
-    }
-    // Метод для визначення видимого діапазону та інтервалу
-    getVisibleRangeAndInterval() {
-        const intervals = ['1 day', '12 hours', '6 hours', '3 hours', '1 hour', '30 minutes', '15 minutes', '5 minutes', '1 minute'];
-        const currentInterval = intervals[Math.max(0, Math.min(this.zoomLevel, intervals.length - 1))];
-        // Відображення часових діапазонів видимих барів та поточного інтервалу
-        const firstDate = new Date(this.firstVisibleBarTime * 1000);
-        const lastDate = new Date(this.lastVisibleBarTime * 1000);
-        const firstDateString = this.formatDateTime(firstDate);
-        const lastDateString = this.formatDateTime(lastDate);
-        this.ctx.fillStyle = 'black';
-        this.ctx.font = '12px Arial';
-        this.ctx.textAlign = 'left'; // Вирівнювання тексту по лівому краю
-        const timeRangeText = `Visible Range: ${firstDateString} - ${lastDateString} (Interval: ${currentInterval})`;
-        this.ctx.fillText(timeRangeText, this.padding, 20);
     }
     // Метод для відображення графіку
     render() {
@@ -179,13 +148,11 @@ export class Chart {
         // Рисуем бары
         this.renderBars(groupedBars, maxPrice, priceRange);
         // Рисуем шкалу дат и времени
-        if (this.firstVisibleBarTime !== 0 && this.lastVisibleBarTime !== 0) {
-            this.renderChart.drawDateScale(this.durationInMinutes);
-        }
+        this.renderChart.drawDateScale(this.getDurationInMinuteAndSeconds());
         // Рисуем линию и плашку над выбранным баром
-        this.renderChart.drawSelectedBarHighlight(maxPrice, priceRange, this.durationInSeconds);
+        this.renderChart.drawSelectedBarHighlight(maxPrice, priceRange, this.getDurationInMinuteAndSeconds());
         // Добавить отображение видимого диапазона
-        this.getVisibleRangeAndInterval(); // Добавление этой строки
+        this.timeManager.initialVisibleRangeAndInterval(); // Добавление этой строки
     }
     getPriceRange(visibleBars) {
         // Определяем максимальные и минимальные цены для видимых баров
@@ -200,29 +167,22 @@ export class Chart {
     }
     // Подметод для рендеринга баров и объемов
     renderBars(groupedBars, maxPrice, priceRange) {
-        const visibleBars = [];
         groupedBars.forEach((bar, index) => {
             const barX = this.offsetX + this.leftPadding + index * (this.barWidth + this.barSpacing);
             // Проверка видимости бара
             if (barX + this.barWidth >= this.leftPadding && barX - this.barWidth <= this.width - this.rightPadding) {
-                visibleBars.push(bar);
-                // Рисуем объемные бары
+                // Рисуем синии бары
                 this.renderChart.drawVolumeBars(bar, index, this.maxVolume, barX);
                 // Рисуем основные бары
                 this.renderChart.drawBars(bar, maxPrice, priceRange, barX);
             }
         });
-        // Устанавливаем время первого и последнего видимых баров
-        if (this.visibleBars.length > 0) {
-            this.firstVisibleBarTime = this.visibleBars[0].getTime();
-            this.lastVisibleBarTime = this.visibleBars[this.visibleBars.length - 1].getTime();
-        }
-        this.visibleBars = visibleBars;
     }
     // Метод для масштабування графіка
     zoom(zoomIn) {
         // Сохраняем текущее значение центрального времени (в секундах)
-        const centerTime = (this.firstVisibleBarTime + this.lastVisibleBarTime) / 2;
+        const { firstVisibleBarTime, lastVisibleBarTime } = this.timeManager.getCurrentPeriod();
+        const centerTime = (firstVisibleBarTime + lastVisibleBarTime) / 2;
         // Изменяем уровень зума
         if (zoomIn && this.zoomLevel > 0) {
             this.zoomLevel--;
@@ -230,9 +190,6 @@ export class Chart {
         else if (!zoomIn && this.zoomLevel < this.zoomDurations.length - 1) {
             this.zoomLevel++;
         }
-        // Обновляем продолжительность в секундах и минутах для текущего уровня зума
-        this.durationInMinutes = this.zoomDurations[this.zoomLevel];
-        this.durationInSeconds = this.durationInMinutes * 60;
         // Пересчитываем смещение
         this.setOffsetForCenterTime(centerTime);
         // Сброс выбора объемного блока и пересчет графика

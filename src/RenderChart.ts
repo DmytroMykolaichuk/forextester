@@ -241,8 +241,6 @@ export class RenderChart {
         this.ctx.fill();
     }
 
-    
-
     //Подметот для динамічної зміни обраного бару
     public updateSelectedBar(bar:Bar) {
     this.selectedBar = bar;
