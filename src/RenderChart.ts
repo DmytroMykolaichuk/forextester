@@ -6,7 +6,20 @@ export class RenderChart {
     private ctx: CanvasRenderingContext2D;
     private selectedBar: Bar | null = null; 
     private selectedVolumeBarIndex: number | null = null;
-
+    private visibleBars: Bar[] = []; // Масив видимих барів
+    private offsetX: number = 0;
+    private totalChartWidth: number
+    private firstVisibleBarTime: number = 0;
+    private lastVisibleBarTime: number = 0;
+    
+    private height: number;
+    private width: number;
+    private availableHeight: number;
+    private availableWidth: number;
+    private bottomPadding: number;
+    private leftPadding: number;
+    private rightPadding: number;
+    private barWidth:number
     // Конфигурационные параметры
     private config = {
         padding: 30,
@@ -17,21 +30,10 @@ export class RenderChart {
         priceScaleWidth: 50,
     };
 
-    private height: number;
-    private width: number;
-    private availableHeight: number;
-    private availableWidth: number;
-    private bottomPadding: number;
-    private leftPadding: number;
-    private rightPadding: number;
 
     constructor(canvas: HTMLCanvasElement) {
         this.canvas = canvas;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-            throw new Error('Canvas rendering context could not be initialized');
-        }
-        this.ctx = ctx;
+        this.ctx = canvas.getContext('2d')!;
         this.initializeDimensions();
     }
 
@@ -43,6 +45,7 @@ export class RenderChart {
         this.rightPadding = this.config.padding + this.config.priceScaleWidth;
         this.availableHeight = this.height - this.config.topPadding - this.bottomPadding;
         this.availableWidth = this.width - this.leftPadding - this.rightPadding;
+        this.barWidth= this.config.barWidth
     }
 
     // Общий метод для установки стилей контекста
@@ -175,7 +178,7 @@ export class RenderChart {
             const positionX = this.leftPadding + (i * this.availableWidth) / (labelCount - 1);
             const time = this.selectedBar ? this.selectedBar.getTime() + (i * durationInMinutes * 60) : 0;
             const date = new Date(time * 1000);
-            const dateString = this.formatLabelDate(date, durationInMinutes, includeDate);
+            const dateString = this.formatLabelDate(date, includeDate);
             this.ctx.fillText(dateString, positionX, labelY);
         }
     }
@@ -192,7 +195,7 @@ export class RenderChart {
         }
     }
 
-    private formatLabelDate(date: Date, durationInMinutes: number, includeDate: boolean): string {
+    private formatLabelDate(date: Date, includeDate: boolean): string {
         if (includeDate) {
             return this.formatDateTime(date);
         } else {
@@ -244,6 +247,8 @@ export class RenderChart {
         this.ctx.closePath();
         this.ctx.fill();
     }
+
+    
 
     //Подметот для динамічної зміни обраного бару
     public updateSelectedBar(bar:Bar) {

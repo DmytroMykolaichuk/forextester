@@ -2,6 +2,10 @@ export class RenderChart {
     constructor(canvas) {
         this.selectedBar = null;
         this.selectedVolumeBarIndex = null;
+        this.visibleBars = []; // Масив видимих барів
+        this.offsetX = 0;
+        this.firstVisibleBarTime = 0;
+        this.lastVisibleBarTime = 0;
         // Конфигурационные параметры
         this.config = {
             padding: 30,
@@ -12,11 +16,7 @@ export class RenderChart {
             priceScaleWidth: 50,
         };
         this.canvas = canvas;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-            throw new Error('Canvas rendering context could not be initialized');
-        }
-        this.ctx = ctx;
+        this.ctx = canvas.getContext('2d');
         this.initializeDimensions();
     }
     initializeDimensions() {
@@ -27,6 +27,7 @@ export class RenderChart {
         this.rightPadding = this.config.padding + this.config.priceScaleWidth;
         this.availableHeight = this.height - this.config.topPadding - this.bottomPadding;
         this.availableWidth = this.width - this.leftPadding - this.rightPadding;
+        this.barWidth = this.config.barWidth;
     }
     // Общий метод для установки стилей контекста
     setContextStyles(styles) {
@@ -136,7 +137,7 @@ export class RenderChart {
             const positionX = this.leftPadding + (i * this.availableWidth) / (labelCount - 1);
             const time = this.selectedBar ? this.selectedBar.getTime() + (i * durationInMinutes * 60) : 0;
             const date = new Date(time * 1000);
-            const dateString = this.formatLabelDate(date, durationInMinutes, includeDate);
+            const dateString = this.formatLabelDate(date, includeDate);
             this.ctx.fillText(dateString, positionX, labelY);
         }
     }
@@ -154,7 +155,7 @@ export class RenderChart {
             return { labelCount: 3, includeDate: true };
         }
     }
-    formatLabelDate(date, durationInMinutes, includeDate) {
+    formatLabelDate(date, includeDate) {
         if (includeDate) {
             return this.formatDateTime(date);
         }

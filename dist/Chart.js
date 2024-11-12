@@ -58,7 +58,7 @@ export class Chart {
     }
     // Метод для групування барів на основі рівня зума
     groupBarsByZoomLevel() {
-        const { durationInSeconds } = this.getDurationInMinuteAndSeconds();
+        const durationInSeconds = this.getDurationInMinuteAndSeconds();
         const groupedBars = [];
         if (this.bars.length === 0) {
             return groupedBars;
@@ -98,7 +98,7 @@ export class Chart {
     getDurationInMinuteAndSeconds() {
         const durationInMinutes = this.zoomDurations[Math.max(0, Math.min(this.zoomLevel, this.zoomDurations.length - 1))];
         const durationInSeconds = durationInMinutes * 60; // Час для групи барів в секундах
-        return { durationInMinutes, durationInSeconds };
+        return durationInSeconds;
     }
     initializeVisibleRange() {
         // Группировка баров в зависимости от текущего уровня зума
@@ -187,13 +187,7 @@ export class Chart {
         if (this.visibleBars.length === 0)
             return;
         // Определяем максимальные и минимальные цены для видимых баров
-        const maxPrice = Math.max(...this.visibleBars.map(bar => bar.getHigh()));
-        const minPrice = Math.min(...this.visibleBars.map(bar => bar.getLow()));
-        let priceRange = maxPrice - minPrice;
-        // Обработка случая, когда priceRange равен нулю
-        if (priceRange === 0) {
-            priceRange = maxPrice * 0.01; // Устанавливаем минимальный диапазон
-        }
+        const { maxPrice, priceRange } = this.getPriceRange(this.visibleBars);
         // Рисуем шкалу цен с учетом динамического изменения
         this.renderChart.drawPriceScale(maxPrice, priceRange);
         // Определяем максимальный объем для нормализации высоты объемных блоков
@@ -208,6 +202,17 @@ export class Chart {
         this.renderChart.drawSelectedBarHighlight(maxPrice, priceRange, this.durationInSeconds);
         // Добавить отображение видимого диапазона
         this.getVisibleRangeAndInterval(); // Добавление этой строки
+    }
+    getPriceRange(visibleBars) {
+        // Определяем максимальные и минимальные цены для видимых баров
+        const maxPrice = Math.max(...visibleBars.map(bar => bar.getHigh()));
+        const minPrice = Math.min(...visibleBars.map(bar => bar.getLow()));
+        let priceRange = maxPrice - minPrice;
+        // Обработка случая, когда priceRange равен нулю
+        if (priceRange === 0) {
+            priceRange = maxPrice * 0.01; // Устанавливаем минимальный диапазон
+        }
+        return { maxPrice, priceRange };
     }
     // Подметод для рендеринга баров и объемов
     renderBars(groupedBars, maxPrice, priceRange, leftPadding, rightPadding, width, barWidth, barSpacing) {
@@ -351,12 +356,7 @@ export class Chart {
         const availableHeight = height - topPadding - bottomPadding;
         // Обчислення maxPrice та minPrice так само, як в render()
         const groupedBars = this.groupBarsByZoomLevel();
-        const maxPrice = Math.max(...this.visibleBars.map(bar => bar.getHigh()));
-        const minPrice = Math.min(...this.visibleBars.map(bar => bar.getLow()));
-        let priceRange = maxPrice - minPrice;
-        if (priceRange === 0) {
-            priceRange = maxPrice * 0.01;
-        }
+        const { maxPrice, priceRange } = this.getPriceRange(this.visibleBars);
         // Перебираємо всі бари та перевіряємо, чи потрапляє координата в область бару
         for (let i = 0; i < groupedBars.length; i++) {
             const bar = groupedBars[i];
