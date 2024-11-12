@@ -70,8 +70,7 @@ export class Chart {
 
     // Метод для групування барів на основі рівня зума
     private groupBarsByZoomLevel(): Bar[] {
-        const durationInMinutes = this.zoomDurations[Math.max(0, Math.min(this.zoomLevel, this.zoomDurations.length - 1))];
-        const durationInSeconds = durationInMinutes * 60; // Час для групи барів в секундах
+        const {durationInSeconds} = this.getDurationInMinuteAndSeconds()
 
         const groupedBars: Bar[] = [];
 
@@ -115,6 +114,14 @@ export class Chart {
         return new Bar({ Time: time, Open: open, High: high, Low: low, Close: close, TickVolume: tickVolume });
     }
 
+    // Метод для вирахування зуму в часі
+    private getDurationInMinuteAndSeconds():{durationInMinutes:number,durationInSeconds:number} {
+        const durationInMinutes = this.zoomDurations[Math.max(0, Math.min(this.zoomLevel, this.zoomDurations.length - 1))];
+        const durationInSeconds = durationInMinutes * 60; // Час для групи барів в секундах
+
+        return{durationInMinutes,durationInSeconds}
+    }
+
     public initializeVisibleRange(): void {
         // Группировка баров в зависимости от текущего уровня зума
         const groupedBars = this.groupBarsByZoomLevel();
@@ -127,6 +134,7 @@ export class Chart {
     }
     
 
+    // Метод для вирахування барів в зоні видимості
     public getVisibleBars(groupedBars: Bar[]): void {
         // Определяем видимые бары на основе текущих настроек масштаба и смещения
         const visibleBars: Bar[] = [];
@@ -160,15 +168,13 @@ export class Chart {
     }
     
 
+
+
+
+
     //Метод для відображення чорної лінії та плашки над вибраним баром
-    private drawSelectedBarHighlight(groupedBars: Bar[], maxPrice: number, priceRange: number, topPadding: number, availableHeight: number, width: number, durationInSeconds: number, bottomPadding: number) {
+    private drawSelectedBarHighlight(maxPrice: number, priceRange: number, topPadding: number, availableHeight: number, width: number, durationInSeconds: number, bottomPadding: number) {
             if (this.selectedBar) {
-                // Визначення індексу вибраного бару
-                const selectedBarIndex = groupedBars.findIndex(bar => bar.getTime() === this.selectedBar!.getTime());
-    
-                // Координата X вибраного бару
-                const barX = this.offsetX + this.padding + selectedBarIndex * (10 + 5); // barWidth + barSpacing
-    
                 // Ціна верхньої границі тіла бару (максимум між Open та Close)
                 const barTopPrice = Math.max(this.selectedBar.getOpen(), this.selectedBar.getClose());
     
@@ -223,7 +229,7 @@ export class Chart {
     }
 
     // Метод для відображення блоків об'єму торгвілі під свічками
-    private drawVolumeBars(bar: Bar, maxVolume: number, volumeBarHeight: number, barWidth: number,  height: number, dateLabelHeight: number, barX: number) {
+    private drawVolumeBars(bar: Bar, index: number, maxVolume: number, volumeBarHeight: number, barWidth: number,  height: number, dateLabelHeight: number, barX: number) {
         // Відображення об'єму під кожною свічкою (Tick Volume)
         let volumeHeight = (bar.getTickVolume() / maxVolume) * volumeBarHeight;
         const minVolumeHeight = 1; // Мінімальна висота об'єму
@@ -237,6 +243,50 @@ export class Chart {
         // Відображення об'єму
         this.ctx.fillStyle = 'blue';
         this.ctx.fillRect(barX - barWidth / 2, volumeY, barWidth, volumeHeight);
+
+        // Відображення плашки над об'ємним блоком, якщо він обраний
+        if (this.selectedVolumeBarIndex !== null && this.selectedVolumeBarIndex === index) {
+            this.drawVolumeBarLabel(barX, volumeY, bar.getTickVolume());
+        }
+    }
+
+    // Метод для відображення плашки над вибраним об'ємним блоком
+    private drawVolumeBarLabel(barX: number, volumeY: number, volume: number) {
+        const volumeText = `Trade Volume: ${volume}`;
+
+        // Встановлюємо шрифт і розраховуємо розміри плашки
+        this.ctx.font = '10px Arial';
+        const labelWidth = this.ctx.measureText(volumeText).width + 10;
+        const labelHeight = 20;
+
+        // Позиціювання плашки над об'ємним блоком
+        let labelX = barX - labelWidth / 2;
+        let labelY = volumeY - labelHeight - 5;
+
+        // Переконуємось, що плашка не виходить за межі графіка
+        const leftPadding = this.padding;
+        const rightPadding = this.padding + 50; // 50 - ширина шкали цін
+        const width = this.canvas.width;
+        const topPadding = 30;
+        if (labelX < leftPadding) {
+            labelX = leftPadding;
+        } else if (labelX + labelWidth > width - rightPadding) {
+            labelX = width - rightPadding - labelWidth;
+        }
+        if (labelY < topPadding) {
+            labelY = topPadding;
+        }
+
+        // Відображення плашки із заокругленими краями
+        this.drawRoundedRect(labelX, labelY, labelWidth, labelHeight, 5, '#f0f0f0');
+
+        // Відображення тексту на плашці
+        this.ctx.fillStyle = 'black';
+        this.ctx.textAlign = 'center';
+        const textX = labelX + labelWidth / 2;
+        const textY = labelY + labelHeight / 2 + 3;
+
+        this.ctx.fillText(volumeText, textX, textY);
     }
 
     // Метод для відображення барів (червоних і зелених)
@@ -296,85 +346,96 @@ export class Chart {
         });
     }
 
-// Метод для відображення шкали дат і часу
-private drawDateScale(durationInMinutes: number, leftPadding: number, height: number, availableWidth: number) {
-    // Определяем количество меток и необходимость включения даты в зависимости от уровня зума
-    const { labelCount, includeDate } = this.calculateLabelCount(durationInMinutes);
+    // Метод для відображення шкали дат і часу
+    private drawDateScale(durationInMinutes: number, leftPadding: number, height: number, availableWidth: number) {
+        // Определяем количество меток и необходимость включения даты в зависимости от уровня зума
+        const { labelCount, includeDate } = this.calculateLabelCount(durationInMinutes);
 
-    // Позиция Y для меток времени
-    const labelY = height - 5;
+        // Позиция Y для меток времени
+        const labelY = height - 5;
 
-    // Установка стиля текста
-    this.ctx.fillStyle = 'black';
-    this.ctx.font = '10px Arial';
+        // Установка стиля текста
+        this.ctx.fillStyle = 'black';
+        this.ctx.font = '10px Arial';
 
-    for (let i = 0; i < labelCount; i++) {
-        const positionX = leftPadding + (i * availableWidth) / (labelCount - 1);
-        const time = this.firstVisibleBarTime + (i * (this.lastVisibleBarTime - this.firstVisibleBarTime)) / (labelCount - 1);
-        const date = new Date(time * 1000);
+        for (let i = 0; i < labelCount; i++) {
+            const positionX = leftPadding + (i * availableWidth) / (labelCount - 1);
+            const time = this.firstVisibleBarTime + (i * (this.lastVisibleBarTime - this.firstVisibleBarTime)) / (labelCount - 1);
+            const date = new Date(time * 1000);
 
-        // Определяем строку для отображения в зависимости от длительности интервала
-        const dateString = this.formatLabelDate(date, durationInMinutes, includeDate);
+            // Определяем строку для отображения в зависимости от длительности интервала
+            const dateString = this.formatLabelDate(date, durationInMinutes, includeDate);
 
-        // Устанавливаем выравнивание текста для первой, последней и промежуточных меток
-        this.ctx.textAlign = this.getTextAlignment(i, labelCount);
+            // Устанавливаем выравнивание текста для первой, последней и промежуточных меток
+            this.ctx.textAlign = this.getTextAlignment(i, labelCount);
 
-        // Отображение метки времени
-        this.ctx.fillText(dateString, positionX, labelY);
+            // Отображение метки времени
+            this.ctx.fillText(dateString, positionX, labelY);
+        }
     }
-}
-// Метод для расчета количества меток и необходимости включения даты в зависимости от длительности интервала
-private calculateLabelCount(durationInMinutes: number): { labelCount: number, includeDate: boolean } {
-    if (durationInMinutes <= 30) {
-        return { labelCount: 6, includeDate: false };
-    } else if (durationInMinutes <= 180) {
-        return { labelCount: 5, includeDate: true };
-    } else if (durationInMinutes <= 720) {
-        return { labelCount: 4, includeDate: true };
-    } else {
-        // Определяем количество дней между первым и последним видимым баром
-        const startDate = new Date(this.firstVisibleBarTime * 1000);
-        const endDate = new Date(this.lastVisibleBarTime * 1000);
-        const dayDifference = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-        const labelCount = Math.max(2, Math.min(dayDifference, 4)); // Минимум 2 метки
 
-        return { labelCount, includeDate: true };
+
+
+
+
+    
+    // Метод для расчета количества меток и необходимости включения даты в зависимости от длительности интервала
+    private calculateLabelCount(durationInMinutes: number): { labelCount: number, includeDate: boolean } {
+        if (durationInMinutes <= 30) {
+            return { labelCount: 6, includeDate: false };
+        } else if (durationInMinutes <= 180) {
+            return { labelCount: 5, includeDate: true };
+        } else if (durationInMinutes <= 720) {
+            return { labelCount: 4, includeDate: true };
+        } else {
+            // Определяем количество дней между первым и последним видимым баром
+            const startDate = new Date(this.firstVisibleBarTime * 1000);
+            const endDate = new Date(this.lastVisibleBarTime * 1000);
+            const dayDifference = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+            const labelCount = Math.max(2, Math.min(dayDifference, 4)); // Минимум 2 метки
+
+            return { labelCount, includeDate: true };
+        }
     }
-}
-// Метод для форматирования даты метки в зависимости от длительности интервала
-private formatLabelDate(date: Date, durationInMinutes: number, includeDate: boolean): string {
-    if (durationInMinutes >= 1440) {
-        return this.formatDate(date); // Форматирование только даты
-    } else if (includeDate) {
-        return this.formatDateTime(date); // Форматирование даты и времени
-    } else {
-        return this.formatTime(date); // Форматирование только времени
+
+    // Метод для форматирования даты метки в зависимости от длительности интервала
+    private formatLabelDate(date: Date, durationInMinutes: number, includeDate: boolean): string {
+        if (durationInMinutes >= 1440) {
+            return this.formatDate(date); // Форматирование только даты
+        } else if (includeDate) {
+            return this.formatDateTime(date); // Форматирование даты и времени
+        } else {
+            return this.formatTime(date); // Форматирование только времени
+        }
     }
-}
-// Метод для получения выравнивания текста
-private getTextAlignment(index: number, labelCount: number): CanvasTextAlign {
-    if (index === 0) {
-        return 'left';
-    } else if (index === labelCount - 1) {
-        return 'right';
-    } else {
-        return 'center';
+
+    // Метод для получения выравнивания текста
+    private getTextAlignment(index: number, labelCount: number): CanvasTextAlign {
+        if (index === 0) {
+            return 'left';
+        } else if (index === labelCount - 1) {
+            return 'right';
+        } else {
+            return 'center';
+        }
     }
-}
-// Метод для форматування дати
-private formatDate(date: Date): string {
-    return `${date.getDate().toString().padStart(2, '0')}.${(date.getMonth() + 1)
-        .toString()
-        .padStart(2, '0')}.${date.getFullYear()}`;
-}
-// Метод для форматування часу
-private formatTime(date: Date): string {
-    return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
-}
-// Метод для форматування дати та часу
-private formatDateTime(date: Date): string {
-    return `${this.formatDate(date)} ${this.formatTime(date)}`;
-}
+
+    // Метод для форматування дати
+    private formatDate(date: Date): string {
+        return `${date.getDate().toString().padStart(2, '0')}.${(date.getMonth() + 1)
+            .toString()
+            .padStart(2, '0')}.${date.getFullYear()}`;
+    }
+
+    // Метод для форматування часу
+    private formatTime(date: Date): string {
+        return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+    }
+
+    // Метод для форматування дати та часу
+    private formatDateTime(date: Date): string {
+        return `${this.formatDate(date)} ${this.formatTime(date)}`;
+    }
 
     // Метод для визначення видимого діапазону та інтервалу
     private getVisibleRangeAndInterval(): void {
@@ -397,57 +458,6 @@ private formatDateTime(date: Date): string {
         this.ctx.fillText(timeRangeText, this.padding, 20);
     }
 
-
-// Метод для відображення плашки над вибраним об'ємним блоком
-private drawVolumeBarLabel(groupedBars: Bar[], leftPadding: number, width: number, barWidth: number, barSpacing: number, volumeBarHeight: number, dateLabelHeight: number, topPadding: number, maxVolume: number, height: number) {
-    if (this.selectedVolumeBarIndex !== null) {
-        const index = this.selectedVolumeBarIndex;
-        const bar = groupedBars[index];
-
-        const barX = this.offsetX + leftPadding + index * (barWidth + barSpacing);
-
-        // Позиція Y для об'ємного блоку
-        const volumeHeight = (bar.getTickVolume() / maxVolume) * volumeBarHeight;
-        const minVolumeHeight = 1;
-        const actualVolumeHeight = Math.max(volumeHeight, minVolumeHeight);
-
-        const volumeY = height - dateLabelHeight - actualVolumeHeight;
-
-        // Підготовка даних для плашки
-        const volumeText = `Trade Volume: ${bar.getTickVolume()}`;
-
-        // Встановлюємо шрифт і розраховуємо розміри плашки
-        this.ctx.font = '10px Arial';
-        const labelWidth = this.ctx.measureText(volumeText).width + 10;
-        const labelHeight = 20;
-
-        // Позиціювання плашки над об'ємним блоком
-        let labelX = barX - labelWidth / 2;
-        let labelY = volumeY - labelHeight - 5;
-
-        // Переконуємось, що плашка не виходить за межі графіка
-        const rightPadding = this.padding + 50; // 50 - ширина шкали цін
-        if (labelX < leftPadding) {
-            labelX = leftPadding;
-        } else if (labelX + labelWidth > width - rightPadding) {
-            labelX = width - rightPadding - labelWidth;
-        }
-        if (labelY < topPadding) {
-            labelY = topPadding;
-        }
-
-        // Відображення плашки із заокругленими краями
-        this.drawRoundedRect(labelX, labelY, labelWidth, labelHeight, 5, '#f0f0f0');
-
-        // Відображення тексту на плашці
-        this.ctx.fillStyle = 'black';
-        this.ctx.textAlign = 'center';
-        const textX = labelX + labelWidth / 2;
-        const textY = labelY + labelHeight / 2 + 3;
-
-        this.ctx.fillText(volumeText, textX, textY);
-    }
-}
 
     // Метод для відображення графіку
     public render() {
@@ -494,41 +504,44 @@ private drawVolumeBarLabel(groupedBars: Bar[], leftPadding: number, width: numbe
         this.maxVolume = Math.max(...groupedBars.map(bar => bar.getTickVolume())) || 1;
     
         // Рисуем бары
-        groupedBars.forEach((bar, index) => {
-            const barX = this.offsetX + leftPadding + index * (barWidth + barSpacing);
-    
-            // Проверка видимости бара
-            if (barX + barWidth >= leftPadding && barX - barWidth <= width - rightPadding) {
-                // Добавляем бар в массив видимых баров
-                this.visibleBars.push(bar);
-    
-                // Рисуем объемные бары
-                this.drawVolumeBars(bar, this.maxVolume, volumeBarHeight, barWidth, height, dateLabelHeight, barX);
-    
-                // Рисуем основные бары
-                this.drawBars(bar, maxPrice, priceRange, topPadding, availableHeight, barWidth, barX);
-            }
-        });
-    
-        // Устанавливаем время первого и последнего видимых баров
-        this.firstVisibleBarTime = this.visibleBars[0].getTime();
-        this.lastVisibleBarTime = this.visibleBars[this.visibleBars.length - 1].getTime();
+        this.renderBars(groupedBars, maxPrice, priceRange, topPadding, availableHeight, leftPadding, rightPadding, width, height, barWidth, barSpacing, volumeBarHeight, dateLabelHeight);
     
         // Рисуем шкалу дат и времени
         if (this.firstVisibleBarTime !== 0 && this.lastVisibleBarTime !== 0) {
             this.drawDateScale(this.durationInMinutes, leftPadding, height, availableWidth);
         }
     
-        // Рисуем плашку над выбранным объемным блоком
-        this.drawVolumeBarLabel(groupedBars, leftPadding, width, barWidth, barSpacing, volumeBarHeight, dateLabelHeight, topPadding, this.maxVolume, height);
-    
         // Рисуем линию и плашку над выбранным баром
-        this.drawSelectedBarHighlight(groupedBars, maxPrice, priceRange, topPadding, availableHeight, width, this.durationInSeconds, bottomPadding);
+        this.drawSelectedBarHighlight( maxPrice, priceRange, topPadding, availableHeight, width, this.durationInSeconds, bottomPadding);
     
         // Добавить отображение видимого диапазона
         this.getVisibleRangeAndInterval(); // Добавление этой строки
     }
 
+    // Подметод для рендеринга баров и объемов
+    private renderBars(groupedBars: Bar[], maxPrice: number, priceRange: number, topPadding: number, availableHeight: number, leftPadding: number, rightPadding: number, width: number, height: number, barWidth: number, barSpacing: number, volumeBarHeight: number, dateLabelHeight: number) {
+        groupedBars.forEach((bar, index) => {
+            const barX = this.offsetX + leftPadding + index * (barWidth + barSpacing);
+
+            // Проверка видимости бара
+            if (barX + barWidth >= leftPadding && barX - barWidth <= width - rightPadding) {
+                // Добавляем бар в массив видимых баров
+                this.visibleBars.push(bar);
+
+                // Рисуем объемные бары
+                this.drawVolumeBars(bar,index, this.maxVolume, volumeBarHeight, barWidth, height, dateLabelHeight, barX);
+
+                // Рисуем основные бары
+                this.drawBars(bar, maxPrice, priceRange, topPadding, availableHeight, barWidth, barX);
+            }
+        });
+
+        // Устанавливаем время первого и последнего видимых баров
+        if (this.visibleBars.length > 0) {
+            this.firstVisibleBarTime = this.visibleBars[0].getTime();
+            this.lastVisibleBarTime = this.visibleBars[this.visibleBars.length - 1].getTime();
+        }
+    }
 
     // Метод для масштабування графіка
     public zoom(zoomIn: boolean) {
@@ -732,7 +745,7 @@ private drawVolumeBarLabel(groupedBars: Bar[], leftPadding: number, width: numbe
         return null;
     }
 
-    // Метод для відображення прямокутника із заокругленими краями
+    // Метод для відображення плашки баров
     private drawRoundedRect(x: number, y: number, width: number, height: number, radius: number, fillColor: string) {
         this.ctx.beginPath();
         this.ctx.moveTo(x + radius, y);
