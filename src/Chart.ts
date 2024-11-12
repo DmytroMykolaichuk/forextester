@@ -166,26 +166,6 @@ export class Chart {
         this.visibleBars = visibleBars;
     }
 
-    // Метод для форматування дати
-    private formatDate(date: Date): string {
-        return `${date.getDate().toString().padStart(2, '0')}.${(date.getMonth() + 1)
-            .toString()
-            .padStart(2, '0')}.${date.getFullYear()}`;
-    }
-
-    // Метод для форматування часу
-    private formatTime(date: Date): string {
-        return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
-    }
-
-    // Метод для форматування дати та часу
-    private formatDateTime(date: Date): string {
-        return `${this.formatDate(date)} ${this.formatTime(date)}`;
-    }
-
-
-
-
     // Метод для відображення графіку
     public render() {
         // Очищаем canvas

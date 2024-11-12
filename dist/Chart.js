@@ -131,20 +131,6 @@ export class Chart {
         }
         this.visibleBars = visibleBars;
     }
-    // Метод для форматування дати
-    formatDate(date) {
-        return `${date.getDate().toString().padStart(2, '0')}.${(date.getMonth() + 1)
-            .toString()
-            .padStart(2, '0')}.${date.getFullYear()}`;
-    }
-    // Метод для форматування часу
-    formatTime(date) {
-        return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
-    }
-    // Метод для форматування дати та часу
-    formatDateTime(date) {
-        return `${this.formatDate(date)} ${this.formatTime(date)}`;
-    }
     // Метод для відображення графіку
     render() {
         // Очищаем canvas
