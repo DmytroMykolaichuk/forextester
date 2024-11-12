@@ -124,17 +124,37 @@ export class RenderChart {
         });
     }
     // Метод для отображения шкалы дат и времени
-    drawDateScale(durationInMinutes) {
+    // Метод для отображения шкалы дат и времени
+    drawDateScale(firstVisibleBarTime, durationInMinutes) {
         const { labelCount, includeDate } = this.calculateLabelCount(durationInMinutes);
         const labelY = this.height - 5;
+        const startTime = firstVisibleBarTime; // Начальное время для шкалы
+        const intervalInSeconds = durationInMinutes * 60;
         this.setContextStyles({ fillStyle: 'black', font: '10px Arial' });
         for (let i = 0; i < labelCount; i++) {
+            // Позиция X для метки
             const positionX = this.leftPadding + (i * this.availableWidth) / (labelCount - 1);
-            const time = this.selectedBar ? this.selectedBar.getTime() + (i * durationInMinutes * 60) : 0;
+            // Время для текущей метки, начиная с `firstVisibleBarTime`
+            const time = startTime + i * intervalInSeconds;
             const date = new Date(time * 1000);
             const dateString = this.formatLabelDate(date, includeDate);
             this.ctx.fillText(dateString, positionX, labelY);
         }
+    }
+    // Метод для визначення видимого діапазону та інтервалу
+    getVisibleRangeAndInterval(zoomLevel, firstVisibleBarTime, lastVisibleBarTime) {
+        const intervals = ['1 day', '12 hours', '6 hours', '3 hours', '1 hour', '30 minutes', '15 minutes', '5 minutes', '1 minute'];
+        const currentInterval = intervals[Math.max(0, Math.min(zoomLevel, intervals.length - 1))];
+        // Відображення часових діапазонів видимих барів та поточного інтервалу
+        const firstDate = new Date(firstVisibleBarTime * 1000);
+        const lastDate = new Date(lastVisibleBarTime * 1000);
+        const firstDateString = this.formatDateTime(firstDate);
+        const lastDateString = this.formatDateTime(lastDate);
+        this.ctx.fillStyle = 'black';
+        this.ctx.font = '12px Arial';
+        this.ctx.textAlign = 'left'; // Вирівнювання тексту по лівому краю
+        const timeRangeText = `Visible Range: ${firstDateString} - ${lastDateString} (Interval: ${currentInterval})`;
+        this.ctx.fillText(timeRangeText, this.leftPadding, 20);
     }
     calculateLabelCount(durationInMinutes) {
         if (durationInMinutes <= 30) {

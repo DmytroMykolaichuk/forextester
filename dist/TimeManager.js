@@ -2,7 +2,7 @@ export class TimeManager {
     constructor(ctx) {
         this.firstVisibleBarTime = 0;
         this.lastVisibleBarTime = 0;
-        this.zoomLevel = 6;
+        this.private = 6;
         this.ctx = ctx;
     }
     // Метод для форматування дати
@@ -23,6 +23,7 @@ export class TimeManager {
     initialVisibleRangeAndInterval() {
         const intervals = ['1 day', '12 hours', '6 hours', '3 hours', '1 hour', '30 minutes', '15 minutes', '5 minutes', '1 minute'];
         const currentInterval = intervals[Math.max(0, Math.min(this.zoomLevel, intervals.length - 1))];
+        console.log(currentInterval, this.zoomLevel);
         // Відображення часових діапазонів видимих барів та поточного інтервалу
         const firstDate = new Date(this.firstVisibleBarTime * 1000);
         const lastDate = new Date(this.lastVisibleBarTime * 1000);
@@ -43,5 +44,9 @@ export class TimeManager {
             firstVisibleBarTime: this.firstVisibleBarTime,
             lastVisibleBarTime: this.lastVisibleBarTime
         };
+    }
+    updateZoom(newZoom) {
+        this.zoomLevel = newZoom;
+        console.log(newZoom);
     }
 }
